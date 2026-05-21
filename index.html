@@ -6,40 +6,20 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background-color: #f4f6f8; color: #1a1a1a; display: flex; height: 100vh; overflow: hidden; }
-        
         .sidebar { width: 280px; background: #ffffff; border-right: 1px solid #e5e7eb; padding: 25px 20px; display: flex; flex-direction: column; }
         .brand h1 { font-size: 20px; font-weight: 800; color: #111; letter-spacing: -0.5px; margin-bottom: 25px; }
-        
         .category-list { list-style: none; flex-grow: 1; overflow-y: auto; }
-        .category-item { padding: 12px 14px; color: #495057; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; margin-bottom: 4px; transition: all 0.15s; }
+        .category-item { padding: 12px 14px; color: #495057; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; margin-bottom: 4px; }
         .category-item:hover { background: #f1f3f5; color: #111; }
         .category-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
-        
         .main-content { flex-grow: 1; background: #f8f9fa; padding: 35px; overflow-y: auto; display: flex; flex-direction: column; }
-        
         .search-container { width: 100%; margin-bottom: 25px; }
-        .main-search-box { 
-            width: 100%; 
-            padding: 16px 24px; 
-            background-color: #ffffff; 
-            border: 2.5px solid #1a73e8; 
-            border-radius: 12px; 
-            color: #111111; 
-            font-size: 14px; 
-            font-weight: 700; 
-            box-shadow: 0 6px 16px rgba(26, 115, 232, 0.08); 
-            transition: all 0.2s;
-        }
-        .main-search-box:focus { outline: none; border-color: #0d47a1; box-shadow: 0 8px 24px rgba(13, 71, 161, 0.18); }
-        .main-search-box::placeholder { color: #1a73e8; opacity: 0.6; }
-        
+        .main-search-box { width: 100%; padding: 16px 24px; background-color: #ffffff; border: 2.5px solid #1a73e8; border-radius: 12px; color: #111111; font-size: 14px; font-weight: 700; box-shadow: 0 6px 16px rgba(26, 115, 232, 0.08); }
         .content-title { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 20px; }
-        
         .cards-list { display: flex; flex-direction: column; gap: 14px; padding-bottom: 80px; }
         .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #111; }
         .card-body { font-size: 14px; color: #333; line-height: 1.65; white-space: pre-line; border-top: 1px solid #f1f3f5; padding-top: 12px; }
-        
         .bottom-bar { position: fixed; bottom: 0; left: 280px; width: calc(100% - 280px); height: 65px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; align-items: center; padding: 0 30px; gap: 15px; }
         .chat-input { flex-grow: 1; padding: 13px 20px; background: #f4f6f8; border: 1px solid #dee2e6; border-radius: 8px; font-size: 13px; }
         .submit-btn { background: #111; color: #fff; border: none; padding: 13px 28px; border-radius: 8px; font-weight: 600; cursor: pointer; }
@@ -65,13 +45,11 @@
         <div class="search-container">
             <input type="text" class="main-search-box" id="searchInput" placeholder="🔍 찾으시는 노동법 조항, 판례 번호, 인사노무 키워드를 실시간으로 검색하세요...">
         </div>
-
         <h2 class="content-title" id="currentTitle">전체 바이블</h2>
-        
         <div class="cards-list" id="cardsList">
             <div class="wiki-card">
-                <div class="card-title">🔄 초고속 인덱싱 인포 로딩 중...</div>
-                <div class="card-body">깃허브 고속 네트워크망을 통해 1,600개 데이터를 즉시 로드하고 있습니다.</div>
+                <div class="card-title">🔄 광속 엔진 가동 중...</div>
+                <div class="card-body">데이터를 불러오고 있습니다. 잠시만 기다려 주세요!</div>
             </div>
         </div>
     </main>
@@ -82,8 +60,8 @@
     </footer>
 
     <script>
-        // 🌟 [속도 혁명] 느린 Render 주소 대신, 같은 방에 있는 json 파일을 직접 0.1초 만에 읽어옵니다.
-        const API_URL = "laws_data.json"; 
+        // 🌟 캐시 버스팅 일련번호 강제 부여 (로딩 속도 극대화)
+        const API_URL = "laws_data.json?v=" + new Date().getTime(); 
         const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
         let serverData = [];
         let currentCategory = "전체";
@@ -95,7 +73,6 @@
                 renderMainContent();
             } catch (err) {
                 console.error("오류:", err);
-                document.getElementById('cardsList').innerHTML = `<div class="wiki-card" style="color:red;">❌ 로컬 데이터 파일(laws_data.json) 로드 실패.</div>`;
             }
         }
 
@@ -154,4 +131,30 @@
 
             cardsList.innerHTML = `
                 <div class="wiki-card" style="border-color: #f59e0b; background-color: #fffbeb;">
-                    <div class="card-title">⚠️ AI 실시간 리
+                    <div class="card-title">⚠️ AI 실시간 리걸 심층 진단 중...</div>
+                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부 및 Action Plan을 수립하고 있습니다. 잠시만 대기해 주세요.</div>
+                </div>`;
+            chatInput.value = "";
+
+            try {
+                const response = await fetch(`${CHAT_API_URL}?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                cardsList.innerHTML = `
+                    <div class="wiki-card" style="border-color: #27ae60; box-shadow: 0 4px 12px rgba(39,174,96,0.1);">
+                        <div class="card-title" style="color:#27ae60;">💡 전문 공인노무사 AI 분석 결과 (Gemini 2.5)</div>
+                        <div class="card-body" style="font-size:14px; line-height:1.8;">${data.answer}</div>
+                    </div>`;
+            } catch (err) {
+                cardsList.innerHTML = `<div class="wiki-card" style="color:red; border-color:red;">❌ 구글 AI 엔진 통신 실패. 잠시 후 다시 시도해 주세요.</div>`;
+            }
+        }
+
+        document.getElementById('searchInput').addEventListener('input', renderMainContent);
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if(e.key === 'Enter') handleSearch();
+        });
+        
+        window.onload = initDashboard;
+    </script>
+</body>
+</html>
