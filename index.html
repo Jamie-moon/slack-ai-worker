@@ -2,83 +2,26 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>노무 위키 v3.0</title>
+    <title>노무 위키 v3.5</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background-color: #f4f6f8; color: #1a1a1a; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* 사이드바 스타일 */
         .sidebar { width: 280px; background: #ffffff; border-right: 1px solid #e5e7eb; padding: 25px 20px; display: flex; flex-direction: column; }
         .brand h1 { font-size: 20px; font-weight: 800; color: #111; letter-spacing: -0.5px; margin-bottom: 15px; }
-        
         .sidebar-search-container { width: 100%; margin-bottom: 20px; }
-        .sidebar-search-box {
-            width: 100%;
-            padding: 11px 16px;
-            background-color: #f8f9fa;
-            border: 1.5px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #333;
-            transition: all 0.15s;
-        }
-        .sidebar-search-box:focus {
-            outline: none;
-            border-color: #1a73e8;
-            background-color: #ffffff;
-            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
-        }
-
+        .sidebar-search-box { width: 100%; padding: 11px 16px; background-color: #f8f9fa; border: 1.5px solid #dee2e6; border-radius: 8px; font-size: 13px; font-weight: 600; color: #333; transition: all 0.15s; }
+        .sidebar-search-box:focus { outline: none; border-color: #1a73e8; background-color: #ffffff; box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1); }
         .category-list { list-style: none; flex-grow: 1; overflow-y: auto; }
-        .category-item { padding: 12px 14px; color: #495057; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; margin-bottom: 4px; transition: all 0.15s; }
+        .category-item { padding: 12px 14px; color: #495057; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; margin-bottom: 4px; }
         .category-item:hover { background: #f1f3f5; color: #111; }
         .category-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
-        
-        /* 메인 콘텐츠 영역 스타일 */
         .main-content { flex-grow: 1; background: #f8f9fa; padding: 35px; overflow-y: auto; display: flex; flex-direction: column; }
-        
-        .ai-search-bar-container { 
-            width: 100%; 
-            display: flex; 
-            gap: 12px; 
-            margin-bottom: 35px; 
-            background: #ffffff;
-            padding: 8px;
-            border: 3px solid #1a73e8; 
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(26, 115, 232, 0.12); 
-        }
-        .ai-chat-input { 
-            flex-grow: 1; 
-            padding: 14px 18px; 
-            background-color: transparent; 
-            border: none;
-            color: #111111; 
-            font-size: 15px; 
-            font-weight: 700; 
-        }
+        .ai-search-bar-container { width: 100%; display: flex; gap: 12px; margin-bottom: 35px; background: #ffffff; padding: 8px; border: 3px solid #1a73e8; border-radius: 16px; box-shadow: 0 10px 25px rgba(26, 115, 232, 0.12); }
+        .ai-chat-input { flex-grow: 1; padding: 14px 18px; background-color: transparent; border: none; color: #111111; font-size: 15px; font-weight: 700; }
         .ai-chat-input:focus { outline: none; }
         .ai-chat-input::placeholder { color: #1a73e8; opacity: 0.55; }
-        
-        .ai-submit-btn { 
-            background-color: #1a73e8; 
-            color: #ffffff; 
-            border: none; 
-            padding: 0 32px; 
-            border-radius: 10px; 
-            font-size: 14px; 
-            font-weight: 800; 
-            cursor: pointer; 
-            transition: background 0.2s; 
-            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
-        }
-        .ai-submit-btn:hover { background-color: #0d47a1; }
-        
+        .ai-submit-btn { background-color: #1a73e8; color: #ffffff; border: none; padding: 0 32px; border-radius: 10px; font-size: 14px; font-weight: 800; cursor: pointer; }
         .content-title { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 20px; }
-        .content-meta-info { font-size: 12px; color: #6c757d; margin-top: -15px; margin-bottom: 20px; font-weight: 600; }
-        
-        /* 법률 카드 리스트 */
         .cards-list { display: flex; flex-direction: column; gap: 14px; }
         .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #111; }
@@ -89,11 +32,9 @@
 
     <aside class="sidebar">
         <div class="brand"><h1>노무 위키</h1></div>
-        
         <div class="sidebar-search-container">
-            <input type="text" class="sidebar-search-box" id="searchInput" placeholder="🔍 판례 번호, 조항, 키워드 필터...">
+            <input type="text" class="sidebar-search-box" id="searchInput" placeholder="🔍 판례 번호, 조항, 키워드 검색...">
         </div>
-
         <ul class="category-list">
             <li class="category-item active" onclick="selectCategory('전체', this)">전체 바이블</li>
             <li class="category-item" onclick="selectCategory('해고', this)">해고·징계</li>
@@ -111,79 +52,45 @@
             <input type="text" class="ai-chat-input" id="chatInput" placeholder="🤖 사안에 대한 노무, 법령, 판례 질문을 입력하시면 AI 노무사가 즉시 심층 진단합니다...">
             <button class="ai-submit-btn" onclick="handleSearch()">질문하기</button>
         </div>
-
         <h2 class="content-title" id="currentTitle">전체 바이블</h2>
-        <div class="content-meta-info" id="contentMetaCount">엔진 동기화 중...</div>
-        
-        <div class="cards-list" id="cardsList">
-            <div class="wiki-card">
-                <div class="card-title">🚀 마스터 리가 마이그레이션 엔진 구동 중...</div>
-                <div class="card-body">초고속 데이터 인덱싱을 진행하고 있습니다. 잠시만 대기해 주세요.</div>
-            </div>
-        </div>
+        <div class="cards-list" id="cardsList"></div>
     </main>
 
     <script>
-        const API_URL = "laws_data.json"; 
-        const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
-        let serverData = [];
+        // 🌟 모든 무거운 연산은 백엔드 API 주소 하나로 단일화합니다.
+        const BACKEND_URL = "https://slack-ai-worker-1lpz.onrender.com/api";
         let currentCategory = "전체";
+        let searchTimeout = null;
 
-        async function initDashboard() {
+        // 🚀 [혁신] 화면이 켜지자마자 백엔드에서 가볍게 가공된 상위 데이터만 바로 당겨옵니다.
+        async function fetchFromServer() {
+            const cardsList = document.getElementById('cardsList');
+            if(!cardsList) return;
+            
+            const keyword = document.getElementById('searchInput').value;
+            cardsList.innerHTML = `<div class="wiki-card" style="color:#1a73e8; font-weight:600;">🔄 서버 인덱싱 최적화 조회 중...</div>`;
+            
             try {
-                const cached = localStorage.getItem("nomu_wiki_cache");
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        serverData = parsed;
-                        document.getElementById('contentMetaCount').innerText = `⚡ 로컬 캐시 즉시 구동 완료 (${serverData.length}개 항목)`;
-                        renderMainContent();
-                        silentUpdateCache();
-                        return;
-                    }
+                const res = await fetch(`${BACKEND_URL}/cases?category=${encodeURIComponent(currentCategory)}&keyword=${encodeURIComponent(keyword)}`);
+                const data = await res.json();
+                
+                if(!Array.isArray(data) || data.length === 0) {
+                    cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">일치하는 노무 바이블 데이터가 없습니다.</div>`;
+                    return;
                 }
-            } catch (e) {
-                localStorage.removeItem("nomu_wiki_cache");
+                
+                let htmlBuffer = "";
+                data.forEach(item => {
+                    htmlBuffer += `
+                        <div class="wiki-card">
+                            <div class="card-title">📌 [${item.category || '일반'}] ${item.question || '제목 없음'}</div>
+                            <div class="card-body">${item.answer || '내용 없음'}</div>
+                        </div>`;
+                });
+                cardsList.innerHTML = htmlBuffer;
+            } catch(err) {
+                cardsList.innerHTML = `<div class="wiki-card" style="color:red;">❌ 서버가 아직 깨어나지 않았거나 연결이 원활하지 않습니다. 잠시 후 새로고침 해주세요.</div>`;
             }
-
-            await forceFetchData();
-        }
-
-        async function forceFetchData() {
-            try {
-                // 🌟 주소 뒤에 붙어있던 ?v=... 를 완전히 청소하여 순수 깃허브 초고속 CDN망을 타게 만듭니다.
-                const res = await fetch(API_URL);
-                serverData = await res.json();
-                
-                if (!Array.isArray(serverData)) serverData = [];
-                
-                if (serverData.length > 0) {
-                    try {
-                        localStorage.setItem("nomu_wiki_cache", JSON.stringify(serverData));
-                    } catch(e) {}
-                }
-                
-                document.getElementById('contentMetaCount').innerText = `🟢 초고속 실시간 로드 완료 (${serverData.length}개 항목)`;
-                renderMainContent();
-            } catch (err) {
-                console.error("오류:", err);
-                document.getElementById('cardsList').innerHTML = `<div class="wiki-card" style="color:red;">❌ 데이터 로드 실패.</div>`;
-            }
-        }
-
-        async function silentUpdateCache() {
-            try {
-                // 백그라운드 업데이트 역시 초고속 고속도로 주소로 변경
-                const res = await fetch(API_URL);
-                const freshData = await res.json();
-                if (Array.isArray(freshData) && freshData.length > 0) {
-                    localStorage.setItem("nomu_wiki_cache", JSON.stringify(freshData));
-                    if (freshData.length !== serverData.length) {
-                        serverData = freshData;
-                        renderMainContent();
-                    }
-                }
-            } catch (e) {}
         }
 
         function selectCategory(cat, element) {
@@ -191,55 +98,14 @@
             document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
             document.getElementById('currentTitle').innerText = element.innerText;
-            renderMainContent();
+            fetchFromServer();
         }
 
-        function renderMainContent() {
-            const cardsList = document.getElementById('cardsList');
-            if(!cardsList) return;
-            if (!Array.isArray(serverData)) serverData = [];
-            
-            if (serverData.length === 0) {
-                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">불러올 데이터가 없습니다.</div>`;
-                return;
-            }
-            
-            const searchKeyword = document.getElementById('searchInput').value.toLowerCase();
-            cardsList.innerHTML = "";
-            
-            let filtered = serverData.filter(item => item && (item.question || item.answer));
-            
-            if(currentCategory !== "전체") {
-                filtered = filtered.filter(item => {
-                    const cText = item.category ? String(item.category) : "";
-                    const qText = item.question ? String(item.question) : "";
-                    return cText.includes(currentCategory) || qText.includes(currentCategory);
-                });
-            }
-            
-            if(searchKeyword) {
-                filtered = filtered.filter(item => {
-                    const qText = item.question ? String(item.question) : "";
-                    const aText = item.answer ? String(item.answer) : "";
-                    return qText.toLowerCase().includes(searchKeyword) || aText.toLowerCase().includes(searchKeyword);
-                });
-            }
-
-            if(filtered.length === 0) {
-                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">일치하는 데이터가 없습니다.</div>`;
-                return;
-            }
-
-            let htmlBuffer = "";
-            filtered.slice(0, 40).forEach(item => {
-                htmlBuffer += `
-                    <div class="wiki-card">
-                        <div class="card-title">📌 [${item.category || '일반'}] ${item.question || '제목 없음'}</div>
-                        <div class="card-body">${item.answer || '내용 없음'}</div>
-                    </div>`;
-            });
-            cardsList.innerHTML = htmlBuffer;
-        }
+        // 🌟 [디바운스 기술] 타이핑할 때 서버에 과부하가 걸리지 않도록 입력이 완전히 끝난 0.2초 뒤에 서버로 무조건 토스합니다.
+        document.getElementById('searchInput').addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(fetchFromServer, 250);
+        });
 
         async function handleSearch() {
             const chatInput = document.getElementById('chatInput');
@@ -250,9 +116,28 @@
             cardsList.innerHTML = `
                 <div class="wiki-card" style="border-color: #f59e0b; background-color: #fffbeb;">
                     <div class="card-title">⚠️ AI 실시간 리걸 심층 진단 중...</div>
-                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부 및 Action Plan을 수립하고 있습니다. 잠시만 대기해 주세요.</div>
+                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부 및 Action Plan을 수립하고 있습니다.</div>
                 </div>`;
             chatInput.value = "";
 
             try {
-                const response = await fetch(`${CHAT_API_URL}?query=${encodeURIComponent(query)}`);
+                const response = await fetch(`${BACKEND_URL}/chat?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                cardsList.innerHTML = `
+                    <div class="wiki-card" style="border-color: #27ae60; box-shadow: 0 4px 12px rgba(39,174,96,0.1);">
+                        <div class="card-title" style="color:#27ae60;">💡 전문 공인노무사 AI 분석 결과</div>
+                        <div class="card-body" style="font-size:14px; line-height:1.8;">${data.answer}</div>
+                    </div>`;
+            } catch (err) {
+                cardsList.innerHTML = `<div class="wiki-card" style="color:red;">❌ 구글 AI 엔진 통신 실패. 잠시 후 다시 시도해 주세요.</div>`;
+            }
+        }
+
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') handleSearch();
+        });
+        
+        window.onload = fetchFromServer;
+    </script>
+</body>
+</html>
