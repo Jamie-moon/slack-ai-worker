@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>노무 위키 v3.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background-color: #f4f6f8; color: #1a1a1a; display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 280px; background: #ffffff; border-right: 1px solid #e5e7eb; padding: 25px 20px; display: flex; flex-direction: column; }
+        .brand h1 { font-size: 20px; font-weight: 800; color: #111; margin-bottom: 25px; }
+        
+        .category-list { list-style: none; flex-grow: 1; overflow-y: auto; }
+        .category-item { padding: 12px 14px; color: #495057; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; margin-bottom: 4px; }
+        .category-item:hover { background: #f1f3f5; color: #111; }
+        .category-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
+        
+        .main-content { flex-grow: 1; background: #f8f9fa; padding: 35px; overflow-y: auto; display: flex; flex-direction: column; }
+        
+        /* 🌟 상단 전면 배치 + 초강력 토스 블루 포인트 검색바 */
+        .search-container { width: 100%; margin-bottom: 25px; }
+        .main-search-box { 
+            width: 100%; 
+            padding: 16px 24px; 
+            background-color: #ffffff; 
+            border: 2.5px solid #1a73e8; 
+            border-radius: 12px; 
+            color: #111111; 
+            font-size: 14px; 
+            font-weight: 700; 
+            box-shadow: 0 6px 16px rgba(26, 115, 232, 0.08); 
+            transition: all 0.2s;
+        }
+        .main-search-box:focus { outline: none; border-color: #0d47a1; }
+        
+        .content-title { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 20px; }
+        .cards-list { display: flex; flex-direction: column; gap: 14px; padding-bottom: 80px; }
+        .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #111; }
+        .card-body { font-size: 14px; color: #333; line-height: 1.65; white-space: pre-line; border-top: 1px solid #f1f3f5; padding-top: 12px; }
+        
+        .bottom-bar { position: fixed; bottom: 0; left: 280px; width: calc(100% - 280px); height: 65px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; align-items: center; padding: 0 30px; gap: 15px; }
+        .chat-input { flex-grow: 1; padding: 13px 20px; background: #f4f6f8; border: 1px solid #dee2e6; border-radius: 8px; font-size: 13px; }
+        .submit-btn { background: #111; color: #fff; border: none; padding: 13px 28px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand"><h1>노무 위키</h1></div>
+        <ul class="category-list">
+            <li class="category-item active" onclick="selectCategory('전체', this)">전체 바이블</li>
+            <li class="category-item" onclick="selectCategory('해고', this)">해고·징계</li>
+            <li class="category-item" onclick="selectCategory('임금', this)">급여·임금</li>
+            <li class="category-item" onclick="selectCategory('근로시간', this)">근태·근로시간</li>
+            <li class="category-item" onclick="selectCategory('계약', this)">계약·채용</li>
+            <li class="category-item" onclick="selectCategory('휴가', this)">휴가·휴직</li>
+            <li class="category-item" onclick="selectCategory('산재', this)">산재·안전</li>
+            <li class="category-item" onclick="selectCategory('괴롭힘', this)">직장내괴롭힘</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="search-container">
+            <input type="text" class="main-search-box" id="searchInput" placeholder="🔍 찾으시는 노동법 조항, 판례 번호, 인사노무 키워드를 실시간으로 검색하세요...">
+        </div>
+
+        <h2 class="content-title" id="currentTitle">전체 바이블</h2>
+        
+        <div class="cards-list" id="cardsList">
+            <div class="wiki-card">
+                <div class="card-title">🔄 데이터 기지국 연결 중...</div>
+                <div class="card-body">서버에서 1,600개 노무 가이드를 안전하게 불러오고 있습니다. 잠시만 기다려 주세요!</div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bottom-bar">
+        <input type="text" class="chat-input" id="chatInput" placeholder="노무·법령·판례 질문 (Enter 전송)">
+        <button class="submit-btn" onclick="handleSearch()">질문하기</button>
+    </footer>
+
+    <script>
+        const API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/cases";
+        const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
+        let serverData = [];
+        let currentCategory = "전체";
+
+        async function initDashboard() {
+            try {
+                const res = await fetch(API_URL);
+                serverData = await res.json();
+                renderMainContent();
+            } catch (err) {
+                console.error("오류:", err);
+            }
+        }
+
+        function selectCategory(cat, element) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('currentTitle').innerText = element.innerText;
+            renderMainContent();
+        }
+
+        function renderMainContent() {
+            const cardsList = document.getElementById('cardsList');
+            if(!cardsList || serverData.length === 0) return;
+            
+            const searchKeyword = document.getElementById('searchInput').value.toLowerCase();
+            cardsList.innerHTML = "";
+            
+            let filtered = serverData.filter(item => item && (item.question || item.answer));
+            
+            if(currentCategory !== "전체") {
+                filtered = filtered.filter(item => {
+                    const cText = item.category ? String(item.category) : "";
+                    const qText = item.question ? String(item.question) : "";
+                    return cText.includes(currentCategory) || qText.includes(currentCategory);
+                });
+            }
+            
+            if(searchKeyword) {
+                filtered = filtered.filter(item => {
+                    const qText = item.question ? String(item.question) : "";
+                    const a
