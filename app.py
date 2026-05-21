@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+import os
+import json
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
 
 app = FastAPI()
 
+# CORS 설정: Netlify 프론트엔드의 접근을 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -11,67 +15,68 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 💡 외부 파일(json)을 읽지 않고, 서버가 켜질 때 1,600개를 즉시 자체 생성합니다.
-INDUSTRIES = ["IT 개발사", "스타트업", "제조업 공장", "프랜차이즈 카페", "대형 병원", "물류센터", "디자인 에이전시", "건설 현장", "동네 학원", "뷰티 미용실"]
-EMPLOYEES = ["정규직 사원", "계약직 직원", "파트타임 알바생", "수습 근로자", "프리랜서 위장 근무자", "외국인 노동자", "시니어 팀장", "단시간 근로자"]
+# 🔑 메디빌더님의 실제 제미나이 API 키를 여기에 넣으세요!
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-CORE_TEMPLATES = [
-    {
-        "category": "근로계약",
-        "law": "근로기준법 제17조(근로조건의 명시)",
-        "situations": [
-            ("구두 계약 및 근로계약서 미교부 피해", "채용 후 업무를 시작했으나 회사가 바쁘다는 이유로 근로계약서를 서면으로 교부하지 않았습니다. 이는 명백한 노동법 위반이며, 사용자에게 500만원 이하의 벌금이 부과될 수 있습니다."),
-            ("수습기간 중 일방적인 계약 해지 통보", "계약을 체결하며 수습 기간을 설정했으나, 회사 측에서 객관적인 평가 기준 없이 업무 능력이 부족하다며 일방적으로 출근 정지를 통보했습니다.")
-        ]
-    },
-    {
-        "category": "근로시간",
-        "law": "근로기준법 제50조 및 제53조(주 52시간제)",
-        "situations": [
-            ("업무 과다로 인한 강제 연장근로 수당 미지급", "기본 근로시간 외에 상사의 묵시적인 지시나 업무량 과다로 인해 야근을 강요받고 있습니다. 실제 근로를 제공했다면 연장근로수당을 전액 지급해야 합니다."),
-            ("무급 대기시간 및 준비시간의 노동 인정 여부", "출근 시간 전 작업 준비를 강제하거나, 고객을 기다리는 대기시간을 무급 휴게시간으로 처리하고 있습니다. 사용자의 지휘·감독 아래 있는 모든 시간은 근로시간입니다.")
-        ]
-    },
-    {
-        "category": "임금",
-        "law": "근로기준법 제43조(지급 원칙) 및 제56조(가산수당)",
-        "situations": [
-            ("포괄임금제를 빌미로 한 야간/휴일수당 삭감", "포괄임금계약을 맺었다는 이유로 실제 발생한 야간근로 및 주말 휴일근로에 대한 가산수당을 전혀 주지 않고 있습니다. 고정수당을 초과하여 일한 시간만큼은 무조건 추가 수당을 지급해야 합니다."),
-            ("퇴직금 지급 조건 미달 주장 및 분쟁", "1년 이상 근무하고 퇴직했으나, 주 소정근로시간이 유동적이라며 퇴직금 지급을 거부당했습니다. 4주간 평균 1주 15시간 이상이면 퇴직금을 지급해야 합니다.")
-        ]
-    },
-    {
-        "category": "징계",
-        "law": "근로기준법 제23조 및 제27조(해고의 제한 및 서면통지)",
-        "situations": [
-            ("카카오톡 메시지를 통한 당일 부당해고 통보", "사소한 이유로 경영진으로부터 카카오톡이나 문자 메시지로 당일 해고를 통보받았습니다. 해고는 반드시 '서면'으로 통지해야 하며 이를 위반하면 무효입니다."),
-            ("징계 절차를 무시한 독단적인 감봉 및 정직 처분", "인사위원회 개최나 소명 기회 부여 등 사내 취업규칙에 정해진 정당한 징계 절차를 완전히 무시하고 감봉을 통보했습니다.")
-        ]
-    },
-    {
-        "category": "기타",
-        "law": "근로기준법 제60조(연차휴가) 및 제76조의2(직장 내 괴롭힘)",
-        "situations": [
-            ("회사의 사정을 이유로 한 연차 유급휴가 사용 강제 거부", "근로자가 원하는 날짜에 연차휴가를 신청했으나 사측에서 반려했습니다. 막대한 경영상 지장이 입증되지 않는 한 위법합니다."),
-            ("직장 내 괴롭힘 신고 이후 보복성 인사 조치", "사내 따돌림이나 폭언을 신고하자, 오히려 피해자를 연고가 없는 먼 부서로 강제 발령냈습니다. 이는 중범죄에 해당합니다.")
-        ]
-    }
-]
+# 로컬에 축적된 1,600개 규모의 laws_data.json 로드
+def load_knowledge_base():
+    json_path = "laws_data.json"
+    if os.path.exists(json_path):
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
-# ⚙️ 대형 매트릭스 연산으로 1,600개 빌드
-MEGA_DATA = []
-for loop in range(2):
-    for ind in INDUSTRIES:
-        for emp in EMPLOYEES:
-            for temp in CORE_TEMPLATES:
-                for sit_title, sit_desc in temp["situations"]:
-                    ver_text = f" [심층 사례 연구 {loop+1}]" if loop > 0 else ""
-                    MEGA_DATA.append({
-                        "question": f"[{temp['category']}] {ind}에서 근무하는 {emp}의 {sit_title}{ver_text}",
-                        "answer": f"💡 관련 법령: {temp['law']}\n\n[상황 내용]\n{sit_desc}\n\n[인사노무 가이드]\n해당 업종의 특성을 고려하더라도 법정 기준 미달 처우는 무효입니다. 즉각적인 시정이 필요합니다.",
-                        "category": temp["category"]
-                    })
-
+# 🔥 [엔드포인트 1] 왼쪽 사이드바 및 브라우징용 전체 데이터 송출
 @app.get("/api/cases")
-def get_mega_cases():
-    return MEGA_DATA
+def get_all_cases():
+    data = load_knowledge_base()
+    if data:
+        return data
+    # 파일이 없을 경우 최소한의 기본 데이터 반환
+    return [{"question": "[안내] 마스터 데이터 로드 실패", "answer": "laws_data.json 파일이 서버에 없습니다.", "category": "기타"}]
+
+# 🔥 [엔드포인트 2] 하단 대화창용 실시간 RAG AI 상담 분석
+@app.get("/api/chat")
+def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
+    knowledge_base = load_knowledge_base()
+    
+    # 시맨틱 키워드 필터링 (가장 관련 깊은 5개 추출)
+    keywords = query.split()
+    related_docs = []
+    
+    for item in knowledge_base:
+        q_text = item.get("question", "")
+        a_text = item.get("answer", "")
+        if any(kw in q_text or kw in a_text for kw in keywords):
+            related_docs.append(f"참고 조항/판례: {q_text}\n내용: {a_text}")
+            if len(related_docs) >= 5:
+                break
+
+    context_text = "\n\n".join(related_docs) if related_docs else "관련된 구체적 사내 가이드라인 또는 판례 없음."
+
+    prompt = f"""
+    당신은 대한민국 고용노동부 출신의 베테랑 공인노무사입니다.
+    제공된 [참고 데이터]를 바탕으로 [유저의 질문]을 실시간으로 분석하여 전문적이고 명확한 솔루션을 제공하세요.
+
+    [참고 데이터]
+    {context_text}
+
+    [유저의 질문]
+    "{query}"
+
+    [답변 지침]
+    1. 반드시 제공된 참고 데이터의 법적 근거(제X조 또는 판례 번호)를 인용하며 답변을 시작하세요.
+    2. 유저의 상황이 노동법상 위법인지 적법인지 날카롭게 진단해 주세요.
+    3. 근로자 또는 인사담당자가 당장 취해야 할 실무적 행동 지침(Action Plan)을 단계별로 제시하세요.
+    4. 전문가의 정중하고 확신에 찬 어조(~합니다)를 유지하세요.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return {"answer": response.text.strip()}
+    except Exception as e:
+        return {"answer": f"AI 분석 엔진 가동 중 오류가 발생했습니다. (원인: {e})"}
