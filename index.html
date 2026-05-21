@@ -48,8 +48,8 @@
         <h2 class="content-title" id="currentTitle">전체 바이블</h2>
         <div class="cards-list" id="cardsList">
             <div class="wiki-card">
-                <div class="card-title">🔄 광속 엔진 가동 중...</div>
-                <div class="card-body">데이터를 불러오고 있습니다. 잠시만 기다려 주세요!</div>
+                <div class="card-title">⚡ 초기 고속 인덱싱 구성 중...</div>
+                <div class="card-body">초기 1회 데이터를 다운로드하고 있습니다. 이후 접속부터는 즉시 로드됩니다.</div>
             </div>
         </div>
     </main>
@@ -60,8 +60,8 @@
     </footer>
 
     <script>
-        // 🌟 캐시 버스팅 일련번호 강제 부여 (로딩 속도 극대화)
-        const API_URL = "laws_data.json?v=" + new Date().getTime(); 
+        // 🌟 브라우저 캐시를 정상 허용하여 다음 접속부터는 0초 만에 열리도록 복원
+        const API_URL = "laws_data.json"; 
         const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
         let serverData = [];
         let currentCategory = "전체";
@@ -89,7 +89,6 @@
             if(!cardsList || serverData.length === 0) return;
             
             const searchKeyword = document.getElementById('searchInput').value.toLowerCase();
-            cardsList.innerHTML = "";
             
             let filtered = serverData.filter(item => item && (item.question || item.answer));
             
@@ -101,60 +100,4 @@
                 });
             }
             
-            if(searchKeyword) {
-                filtered = filtered.filter(item => {
-                    const qText = item.question ? String(item.question) : "";
-                    const aText = item.answer ? String(item.answer) : "";
-                    return qText.toLowerCase().includes(searchKeyword) || aText.toLowerCase().includes(searchKeyword);
-                });
-            }
-
-            if(filtered.length === 0) {
-                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">일치하는 데이터가 없습니다.</div>`;
-                return;
-            }
-
-            filtered.slice(0, 40).forEach(item => {
-                cardsList.innerHTML += `
-                    <div class="wiki-card">
-                        <div class="card-title">📌 [${item.category || '일반'}] ${item.question || '제목 없음'}</div>
-                        <div class="card-body">${item.answer || '내용 없음'}</div>
-                    </div>`;
-            });
-        }
-
-        async function handleSearch() {
-            const chatInput = document.getElementById('chatInput');
-            const cardsList = document.getElementById('cardsList');
-            const query = chatInput.value.trim();
-            if(!query) return;
-
-            cardsList.innerHTML = `
-                <div class="wiki-card" style="border-color: #f59e0b; background-color: #fffbeb;">
-                    <div class="card-title">⚠️ AI 실시간 리걸 심층 진단 중...</div>
-                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부 및 Action Plan을 수립하고 있습니다. 잠시만 대기해 주세요.</div>
-                </div>`;
-            chatInput.value = "";
-
-            try {
-                const response = await fetch(`${CHAT_API_URL}?query=${encodeURIComponent(query)}`);
-                const data = await response.json();
-                cardsList.innerHTML = `
-                    <div class="wiki-card" style="border-color: #27ae60; box-shadow: 0 4px 12px rgba(39,174,96,0.1);">
-                        <div class="card-title" style="color:#27ae60;">💡 전문 공인노무사 AI 분석 결과 (Gemini 2.5)</div>
-                        <div class="card-body" style="font-size:14px; line-height:1.8;">${data.answer}</div>
-                    </div>`;
-            } catch (err) {
-                cardsList.innerHTML = `<div class="wiki-card" style="color:red; border-color:red;">❌ 구글 AI 엔진 통신 실패. 잠시 후 다시 시도해 주세요.</div>`;
-            }
-        }
-
-        document.getElementById('searchInput').addEventListener('input', renderMainContent);
-        document.getElementById('chatInput').addEventListener('keypress', function(e) {
-            if(e.key === 'Enter') handleSearch();
-        });
-        
-        window.onload = initDashboard;
-    </script>
-</body>
-</html>
+            if(search
