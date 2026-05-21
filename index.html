@@ -113,12 +113,12 @@
         </div>
 
         <h2 class="content-title" id="currentTitle">전체 바이블</h2>
-        <div class="content-meta-info" id="contentMetaCount">엔진 복구 및 초기화 중...</div>
+        <div class="content-meta-info" id="contentMetaCount">엔진 동기화 중...</div>
         
         <div class="cards-list" id="cardsList">
             <div class="wiki-card">
                 <div class="card-title">🚀 마스터 리가 마이그레이션 엔진 구동 중...</div>
-                <div class="card-body">데이터 검증을 진행하고 있습니다. 잠시만 대기해 주세요.</div>
+                <div class="card-body">초고속 데이터 인덱싱을 진행하고 있습니다. 잠시만 대기해 주세요.</div>
             </div>
         </div>
     </main>
@@ -129,59 +129,52 @@
         let serverData = [];
         let currentCategory = "전체";
 
-        // 🌟 [철벽 방어] 깨진 캐시가 수집되면 알아서 정화하는 메커니즘
         async function initDashboard() {
             try {
                 const cached = localStorage.getItem("nomu_wiki_cache");
                 if (cached) {
                     const parsed = JSON.parse(cached);
-                    // 🔍 데이터 구조가 정상적인 '배열' 형태인지 최종 확인
                     if (Array.isArray(parsed) && parsed.length > 0) {
                         serverData = parsed;
-                        document.getElementById('contentMetaCount').innerText = `⚡ 로컬 초고속 캐시 구동 완료 (${serverData.length}개 항목)`;
+                        document.getElementById('contentMetaCount').innerText = `⚡ 로컬 캐시 즉시 구동 완료 (${serverData.length}개 항목)`;
                         renderMainContent();
                         silentUpdateCache();
                         return;
-                    } else {
-                        // 규격에 맞지 않는 쓰레기 값이면 즉시 소멸 처리
-                        localStorage.removeItem("nomu_wiki_cache");
                     }
                 }
             } catch (e) {
                 localStorage.removeItem("nomu_wiki_cache");
             }
 
-            // 안전망 통과 후 정공법으로 초정밀 로드 진행
             await forceFetchData();
         }
 
         async function forceFetchData() {
             try {
-                const res = await fetch(`${API_URL}?v=${new Date().getTime()}`);
+                // 🌟 주소 뒤에 붙어있던 ?v=... 를 완전히 청소하여 순수 깃허브 초고속 CDN망을 타게 만듭니다.
+                const res = await fetch(API_URL);
                 serverData = await res.json();
                 
-                // 받아온 값마저 배열이 아니면 공백 배열로 원천 차단하여 crash 방지
-                if (!Array.isArray(serverData)) {
-                    serverData = [];
-                }
+                if (!Array.isArray(serverData)) serverData = [];
                 
                 if (serverData.length > 0) {
                     try {
                         localStorage.setItem("nomu_wiki_cache", JSON.stringify(serverData));
-                    } catch(e) { console.log("용량 초과 무시"); }
+                    } catch(e) {}
                 }
                 
-                document.getElementById('contentMetaCount').innerText = `🟢 실시간 인덱싱 완료 (${serverData.length}개 항목)`;
+                document.getElementById('contentMetaCount').innerText = `🟢 초고속 실시간 로드 완료 (${serverData.length}개 항목)`;
                 renderMainContent();
             } catch (err) {
                 console.error("오류:", err);
-                document.getElementById('cardsList').innerHTML = `<div class="wiki-card" style="color:red;">❌ 데이터 동기화 실패. GitHub 빌드 완료 사인을 확인하세요.</div>`;
+                document.getElementById('cardsList').innerHTML = `<div class="wiki-card" style="color:red;">❌ 데이터 로드 실패.</div>`;
             }
         }
 
         async function silentUpdateCache() {
             try {
-                const res = await fetch(`${API_URL}?v=${new Date().getTime()}`);
+                // 백그라운드 업데이트 역시 초고속 고속도로 주소로 변경
+                const res = await fetch(API_URL);
                 const freshData = await res.json();
                 if (Array.isArray(freshData) && freshData.length > 0) {
                     localStorage.setItem("nomu_wiki_cache", JSON.stringify(freshData));
@@ -190,9 +183,7 @@
                         renderMainContent();
                     }
                 }
-            } catch (e) {
-                console.log("백그라운드 통신 지연");
-            }
+            } catch (e) {}
         }
 
         function selectCategory(cat, element) {
@@ -206,19 +197,14 @@
         function renderMainContent() {
             const cardsList = document.getElementById('cardsList');
             if(!cardsList) return;
-            
-            // 🌟 예외 차단 2단계: 어떠한 경우에도 serverData가 배열이 아니면 튕기지 않게 방어
-            if (!Array.isArray(serverData)) {
-                serverData = [];
-            }
+            if (!Array.isArray(serverData)) serverData = [];
             
             if (serverData.length === 0) {
-                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">불러올 데이터가 없거나 마이그레이션 중입니다.</div>`;
+                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">불러올 데이터가 없습니다.</div>`;
                 return;
             }
             
-            const searchInput = document.getElementById('searchInput');
-            const searchKeyword = searchInput ? searchInput.value.toLowerCase() : "";
+            const searchKeyword = document.getElementById('searchInput').value.toLowerCase();
             cardsList.innerHTML = "";
             
             let filtered = serverData.filter(item => item && (item.question || item.answer));
@@ -264,4 +250,9 @@
             cardsList.innerHTML = `
                 <div class="wiki-card" style="border-color: #f59e0b; background-color: #fffbeb;">
                     <div class="card-title">⚠️ AI 실시간 리걸 심층 진단 중...</div>
-                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부
+                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부 및 Action Plan을 수립하고 있습니다. 잠시만 대기해 주세요.</div>
+                </div>`;
+            chatInput.value = "";
+
+            try {
+                const response = await fetch(`${CHAT_API_URL}?query=${encodeURIComponent(query)}`);
