@@ -2,7 +2,7 @@ import os
 import json
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware # 🌟 고속 전송을 위한 압축 엔진 도입
+from fastapi.middleware.gzip import GZipMiddleware
 from google import genai
 
 app = FastAPI()
@@ -14,28 +14,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# 🌟 수천 개의 데이터를 70% 이상 압축해서 0.1초 만에 날려보내는 압축 레이어 활성화
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# 🔐 Render 환경변수에서 키를 읽어옵니다.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🌟 [핵심] 외부 요청 시 매번 파일을 읽지 않도록, 서버 시동 시 메모리에 딱 '한 번'만 로드합니다.
+# 📚 대용량 데이터 캐싱 공간
 KNOWLEDGE_BASE = []
 json_path = "laws_data.json"
+
 if os.path.exists(json_path):
-    with open(json_path, "r", encoding="utf-8") as f:
-        KNOWLEDGE_BASE = json.load(f)
-print(f"⚡ [엔진 최적화] {len(KNOWLEDGE_BASE)}개의 노무 데이터가 메모리에 상시 대기 중입니다.")
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            KNOWLEDGE_BASE = json.load(f)
+        print(f"✅ 데이터 로드 성공: {len(KNOWLEDGE_BASE)}개")
+    except Exception as e:
+        print(f"❌ 파일 읽기 실패: {e}")
+        KNOWLEDGE_BASE = []
 
 @app.get("/api/cases")
 def get_all_cases():
-    # 파일 I/O 없이 메모리에 있는 데이터를 즉시 가압축하여 반환 (속도 20배 향상)
-    return KNOWLEDGE_BASE 
+    return KNOWLEDGE_BASE
 
 @app.get("/api/chat")
 def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
-    # 메모리에 로드된 KNOWLEDGE_BASE를 활용해 검색 속도 극대화
     keywords = query.split()
     related_docs = []
     
