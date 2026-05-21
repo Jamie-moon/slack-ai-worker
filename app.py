@@ -16,7 +16,7 @@ app.add_middleware(
 )
 
 # 🔑 메디빌더님의 실제 제미나이 API 키를 여기에 넣으세요!
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+GEMINI_API_KEY = "AIzaSyBpBGE53K51qDVuOMwmKqfDpmGPhcDqKe8"
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # 로컬에 축적된 1,600개 규모의 laws_data.json 로드
