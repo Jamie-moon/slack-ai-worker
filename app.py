@@ -39,7 +39,7 @@ def get_all_cases():
 def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
     try:
         # 1. 환경 변수 등록 상태 전수 조사
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("AIzaSyBpBGE53K51qDVuOMwmKqfDpmGPhcDqKe8")
         if not api_key:
             return {"answer": "❌ [백엔드 에러] Render 대시보드 Env 키에 'GEMINI_API_KEY'가 비어있거나 누락되었습니다."}
         
