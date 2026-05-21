@@ -33,7 +33,7 @@ def get_all_cases():
 @app.get("/api/chat")
 def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
     
-    # 🌟 [공짜 치트키] 쓸 수 있는 모든 무료 키들을 리스트에 수집합니다.
+    # 🌟 쓸 수 있는 모든 무료 키들을 리스트에 수집
     available_keys = []
     
     # 1. Render 환경변수 키 수집
@@ -41,7 +41,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if env_key:
         available_keys.append(env_key.strip())
         
-    # 2. secret_key.txt에 적힌 여러 개의 무료 키 수집 (줄바꿈으로 구분)
+    # 2. secret_key.txt에 적힌 여러 개의 무료 키 수집
     if os.path.exists("secret_key.txt"):
         with open("secret_key.txt", "r", encoding="utf-8") as f:
             for line in f:
@@ -50,7 +50,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                     available_keys.append(clean_key)
                     
     if not available_keys:
-        return {"answer": "❌ [설정 오류] 등록된 제미나이 API 키가 단 하나도 없습니다."}
+        return {"answer": "❌ [설정 오류] 등록된 제미나이 API 키가 단 하나도 없습니다. 키 등록을 확인해 주세요."}
 
     # 데이터 서칭용 콘텍스트 조립
     keywords = query.split()
@@ -80,7 +80,8 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     2. 위법 여부를 진단하고, 실무적 행동 지침(Action Plan)을 단계별로 제시하세요.
     """
 
-    # 🌟 수집된 무료 키들을 순서대로 돌려막기(Rotation) 시작합니다.
+    # 🌟 [무적 루프] 400이든 429든 에러가 나면 무조건 다음 키로 토스합니다.
+    last_error = ""
     for i, api_key in enumerate(available_keys):
         try:
             client = genai.Client(api_key=api_key)
@@ -88,18 +89,13 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 model='gemini-2.5-flash',
                 contents=prompt,
             )
-            # 뚫리면 즉시 답변 반환하고 종료!
+            # 하나라도 성공하면 즉시 답변 반환 후 종료!
             return {"answer": response.text.strip()}
             
         except Exception as google_err:
-            err_msg = str(google_err)
-            # 구글 무료 한도 초과(429) 에러가 나면 다음 키로 패스!
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                print(f"🔄 [{i+1}번 키 한도 초과] 다음 예비 무료 키로 전환하여 재시도합니다...")
-                continue
-            else:
-                # 다른 치명적인 에러는 즉시 리턴
-                return {"answer": f"❌ [AI 엔진 오류] 원인: {err_msg}"}
+            last_error = str(google_err)
+            print(f"⚠️ [{i+1}번 키 실패] 원인: {last_error}. 즉시 다음 예비 키로 넘어갑니다.")
+            continue # 에러 종류 상관없이 다음 키로 무조건 패스
                 
-    # 모든 키가 다 소멸되었을 때만 안내문 출력
-    return {"answer": "⏳ 등록된 모든 무료 키의 하루 한도(20회)가 소멸되었습니다. 다른 구글 계정으로 무료 키를 생성해 'secret_key.txt'에 한 줄 더 추가해 주세요!"}
+    # 모든 키가 다 실패했을 때만 에러 총집합 출력
+    return {"answer": f"⏳ 등록된 모든 무료 키가 만료되었거나 한도를 초과했습니다.\n(마지막 엔진 에러: {last_error})\n\n💡 해결책: Google AI Studio에서 새 키를 받아 secret_key.txt에 한 줄 더 추가해 주세요!"}
