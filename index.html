@@ -80,4 +80,188 @@
         
         /* 법률 카드 리스트 */
         .cards-list { display: flex; flex-direction: column; gap: 14px; }
-        .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px
+        .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #111; }
+        .card-body { font-size: 14px; color: #333; line-height: 1.65; white-space: pre-line; border-top: 1px solid #f1f3f5; padding-top: 12px; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand"><h1>노무 위키</h1></div>
+        
+        <div class="sidebar-search-container">
+            <input type="text" class="sidebar-search-box" id="searchInput" placeholder="🔍 판례 번호, 조항, 키워드 필터...">
+        </div>
+
+        <ul class="category-list">
+            <li class="category-item active" onclick="selectCategory('전체', this)">전체 바이블</li>
+            <li class="category-item" onclick="selectCategory('해고', this)">해고·징계</li>
+            <li class="category-item" onclick="selectCategory('임금', this)">급여·임금</li>
+            <li class="category-item" onclick="selectCategory('근로시간', this)">근태·근로시간</li>
+            <li class="category-item" onclick="selectCategory('계약', this)">계약·채용</li>
+            <li class="category-item" onclick="selectCategory('휴가', this)">휴가·휴직</li>
+            <li class="category-item" onclick="selectCategory('산재', this)">산재·안전</li>
+            <li class="category-item" onclick="selectCategory('괴롭힘', this)">직장내괴롭힘</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="ai-search-bar-container">
+            <input type="text" class="ai-chat-input" id="chatInput" placeholder="🤖 사안에 대한 노무, 법령, 판례 질문을 입력하시면 AI 노무사가 즉시 심층 진단합니다...">
+            <button class="ai-submit-btn" onclick="handleSearch()">질문하기</button>
+        </div>
+
+        <h2 class="content-title" id="currentTitle">전체 바이블</h2>
+        <div class="content-meta-info" id="contentMetaCount">엔진 복구 및 초기화 중...</div>
+        
+        <div class="cards-list" id="cardsList">
+            <div class="wiki-card">
+                <div class="card-title">🚀 마스터 리가 마이그레이션 엔진 구동 중...</div>
+                <div class="card-body">데이터 검증을 진행하고 있습니다. 잠시만 대기해 주세요.</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = "laws_data.json"; 
+        const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
+        let serverData = [];
+        let currentCategory = "전체";
+
+        // 🌟 [철벽 방어] 깨진 캐시가 수집되면 알아서 정화하는 메커니즘
+        async function initDashboard() {
+            try {
+                const cached = localStorage.getItem("nomu_wiki_cache");
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    // 🔍 데이터 구조가 정상적인 '배열' 형태인지 최종 확인
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        serverData = parsed;
+                        document.getElementById('contentMetaCount').innerText = `⚡ 로컬 초고속 캐시 구동 완료 (${serverData.length}개 항목)`;
+                        renderMainContent();
+                        silentUpdateCache();
+                        return;
+                    } else {
+                        // 규격에 맞지 않는 쓰레기 값이면 즉시 소멸 처리
+                        localStorage.removeItem("nomu_wiki_cache");
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem("nomu_wiki_cache");
+            }
+
+            // 안전망 통과 후 정공법으로 초정밀 로드 진행
+            await forceFetchData();
+        }
+
+        async function forceFetchData() {
+            try {
+                const res = await fetch(`${API_URL}?v=${new Date().getTime()}`);
+                serverData = await res.json();
+                
+                // 받아온 값마저 배열이 아니면 공백 배열로 원천 차단하여 crash 방지
+                if (!Array.isArray(serverData)) {
+                    serverData = [];
+                }
+                
+                if (serverData.length > 0) {
+                    try {
+                        localStorage.setItem("nomu_wiki_cache", JSON.stringify(serverData));
+                    } catch(e) { console.log("용량 초과 무시"); }
+                }
+                
+                document.getElementById('contentMetaCount').innerText = `🟢 실시간 인덱싱 완료 (${serverData.length}개 항목)`;
+                renderMainContent();
+            } catch (err) {
+                console.error("오류:", err);
+                document.getElementById('cardsList').innerHTML = `<div class="wiki-card" style="color:red;">❌ 데이터 동기화 실패. GitHub 빌드 완료 사인을 확인하세요.</div>`;
+            }
+        }
+
+        async function silentUpdateCache() {
+            try {
+                const res = await fetch(`${API_URL}?v=${new Date().getTime()}`);
+                const freshData = await res.json();
+                if (Array.isArray(freshData) && freshData.length > 0) {
+                    localStorage.setItem("nomu_wiki_cache", JSON.stringify(freshData));
+                    if (freshData.length !== serverData.length) {
+                        serverData = freshData;
+                        renderMainContent();
+                    }
+                }
+            } catch (e) {
+                console.log("백그라운드 통신 지연");
+            }
+        }
+
+        function selectCategory(cat, element) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('currentTitle').innerText = element.innerText;
+            renderMainContent();
+        }
+
+        function renderMainContent() {
+            const cardsList = document.getElementById('cardsList');
+            if(!cardsList) return;
+            
+            // 🌟 예외 차단 2단계: 어떠한 경우에도 serverData가 배열이 아니면 튕기지 않게 방어
+            if (!Array.isArray(serverData)) {
+                serverData = [];
+            }
+            
+            if (serverData.length === 0) {
+                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">불러올 데이터가 없거나 마이그레이션 중입니다.</div>`;
+                return;
+            }
+            
+            const searchInput = document.getElementById('searchInput');
+            const searchKeyword = searchInput ? searchInput.value.toLowerCase() : "";
+            cardsList.innerHTML = "";
+            
+            let filtered = serverData.filter(item => item && (item.question || item.answer));
+            
+            if(currentCategory !== "전체") {
+                filtered = filtered.filter(item => {
+                    const cText = item.category ? String(item.category) : "";
+                    const qText = item.question ? String(item.question) : "";
+                    return cText.includes(currentCategory) || qText.includes(currentCategory);
+                });
+            }
+            
+            if(searchKeyword) {
+                filtered = filtered.filter(item => {
+                    const qText = item.question ? String(item.question) : "";
+                    const aText = item.answer ? String(item.answer) : "";
+                    return qText.toLowerCase().includes(searchKeyword) || aText.toLowerCase().includes(searchKeyword);
+                });
+            }
+
+            if(filtered.length === 0) {
+                cardsList.innerHTML = `<div style="text-align:center; padding:40px; color:#868e96; font-size:13px;">일치하는 데이터가 없습니다.</div>`;
+                return;
+            }
+
+            let htmlBuffer = "";
+            filtered.slice(0, 40).forEach(item => {
+                htmlBuffer += `
+                    <div class="wiki-card">
+                        <div class="card-title">📌 [${item.category || '일반'}] ${item.question || '제목 없음'}</div>
+                        <div class="card-body">${item.answer || '내용 없음'}</div>
+                    </div>`;
+            });
+            cardsList.innerHTML = htmlBuffer;
+        }
+
+        async function handleSearch() {
+            const chatInput = document.getElementById('chatInput');
+            const cardsList = document.getElementById('cardsList');
+            const query = chatInput.value.trim();
+            if(!query) return;
+
+            cardsList.innerHTML = `
+                <div class="wiki-card" style="border-color: #f59e0b; background-color: #fffbeb;">
+                    <div class="card-title">⚠️ AI 실시간 리걸 심층 진단 중...</div>
+                    <div class="card-body">제미나이 AI 노무사가 사내 데이터셋을 기반으로 위법 여부
