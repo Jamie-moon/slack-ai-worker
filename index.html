@@ -7,13 +7,10 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background-color: #f4f6f8; color: #1a1a1a; display: flex; height: 100vh; overflow: hidden; }
         
-        /* ==========================================================================
-           사이드바 스타일 (키워드/판례/조항 검색바 배치)
-           ========================================================================== */
+        /* 사이드바 스타일 */
         .sidebar { width: 280px; background: #ffffff; border-right: 1px solid #e5e7eb; padding: 25px 20px; display: flex; flex-direction: column; }
         .brand h1 { font-size: 20px; font-weight: 800; color: #111; letter-spacing: -0.5px; margin-bottom: 15px; }
         
-        /* 🌟 [이동] 원래 위치인 왼쪽 탭 상단으로 이동된 키워드 검색바 */
         .sidebar-search-container { width: 100%; margin-bottom: 20px; }
         .sidebar-search-box {
             width: 100%;
@@ -38,12 +35,9 @@
         .category-item:hover { background: #f1f3f5; color: #111; }
         .category-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
         
-        /* ==========================================================================
-           메인 콘텐츠 영역 스타일 (AI 질문 검색바 최상단 전면 배치)
-           ========================================================================== */
+        /* 메인 콘텐츠 영역 스타일 */
         .main-content { flex-grow: 1; background: #f8f9fa; padding: 35px; overflow-y: auto; display: flex; flex-direction: column; }
         
-        /* 🌟 [UX 혁신 & 가시성 극대화] 본문 최상단에 배치된 초대형 프리미엄 AI 진단 검색바 */
         .ai-search-bar-container { 
             width: 100%; 
             display: flex; 
@@ -51,9 +45,9 @@
             margin-bottom: 35px; 
             background: #ffffff;
             padding: 8px;
-            border: 3px solid #1a73e8; /* 시선을 강탈하는 초고대비 토스 블루 테두리 */
+            border: 3px solid #1a73e8; 
             border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(26, 115, 232, 0.12); /* 푸른 네온 빛 그림자 */
+            box-shadow: 0 10px 25px rgba(26, 115, 232, 0.12); 
         }
         .ai-chat-input { 
             flex-grow: 1; 
@@ -67,7 +61,6 @@
         .ai-chat-input:focus { outline: none; }
         .ai-chat-input::placeholder { color: #1a73e8; opacity: 0.55; }
         
-        /* 검색창과 일체화된 고대비 하이라이트 버튼 */
         .ai-submit-btn { 
             background-color: #1a73e8; 
             color: #ffffff; 
@@ -83,91 +76,8 @@
         .ai-submit-btn:hover { background-color: #0d47a1; }
         
         .content-title { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 20px; }
+        .content-meta-info { font-size: 12px; color: #6c757d; margin-top: -15px; margin-bottom: 20px; font-weight: 600; }
         
         /* 법률 카드 리스트 */
         .cards-list { display: flex; flex-direction: column; gap: 14px; }
-        .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #111; }
-        .card-body { font-size: 14px; color: #333; line-height: 1.65; white-space: pre-line; border-top: 1px solid #f1f3f5; padding-top: 12px; }
-    </style>
-</head>
-<body>
-
-    <aside class="sidebar">
-        <div class="brand"><h1>노무 위키</h1></div>
-        
-        <div class="sidebar-search-container">
-            <input type="text" class="sidebar-search-box" id="searchInput" placeholder="🔍 판례 번호, 조항, 키워드 필터...">
-        </div>
-
-        <ul class="category-list">
-            <li class="category-item active" onclick="selectCategory('전체', this)">전체 바이블</li>
-            <li class="category-item" onclick="selectCategory('해고', this)">해고·징계</li>
-            <li class="category-item" onclick="selectCategory('임금', this)">급여·임금</li>
-            <li class="category-item" onclick="selectCategory('근로시간', this)">근태·근로시간</li>
-            <li class="category-item" onclick="selectCategory('계약', this)">계약·채용</li>
-            <li class="category-item" onclick="selectCategory('휴가', this)">휴가·휴직</li>
-            <li class="category-item" onclick="selectCategory('산재', this)">산재·안전</li>
-            <li class="category-item" onclick="selectCategory('괴롭힘', this)">직장내괴롭힘</li>
-        </ul>
-    </aside>
-
-    <main class="main-content">
-        
-        <div class="ai-search-bar-container">
-            <input type="text" class="ai-chat-input" id="chatInput" placeholder="🤖 사안에 대한 노무, 법령, 판례 질문을 입력하시면 AI 노무사가 즉시 심층 진단합니다...">
-            <button class="ai-submit-btn" onclick="handleSearch()">질문하기</button>
-        </div>
-
-        <h2 class="content-title" id="currentTitle">전체 바이블</h2>
-        
-        <div class="cards-list" id="cardsList">
-            <div class="wiki-card">
-                <div class="card-title">⚡ 초기 고속 인덱싱 구성 중...</div>
-                <div class="card-body">초기 1회 데이터를 다운로드하고 있습니다. 이후 접속부터는 즉시 로드됩니다.</div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        const API_URL = "laws_data.json"; 
-        const CHAT_API_URL = "https://slack-ai-worker-1lpz.onrender.com/api/chat";
-        let serverData = [];
-        let currentCategory = "전체";
-
-        async function initDashboard() {
-            try {
-                const res = await fetch(API_URL);
-                serverData = await res.json();
-                renderMainContent();
-            } catch (err) {
-                console.error("오류:", err);
-            }
-        }
-
-        function selectCategory(cat, element) {
-            currentCategory = cat;
-            document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
-            element.classList.add('active');
-            document.getElementById('currentTitle').innerText = element.innerText;
-            renderMainContent();
-        }
-
-        function renderMainContent() {
-            const cardsList = document.getElementById('cardsList');
-            if(!cardsList || serverData.length === 0) return;
-            
-            const searchKeyword = document.getElementById('searchInput').value.toLowerCase();
-            
-            let filtered = serverData.filter(item => item && (item.question || item.answer));
-            
-            if(currentCategory !== "전체") {
-                filtered = filtered.filter(item => {
-                    const cText = item.category ? String(item.category) : "";
-                    const qText = item.question ? String(item.question) : "";
-                    return cText.includes(currentCategory) || qText.includes(currentCategory);
-                });
-            }
-            
-            if(searchKeyword) {
-                filtered = filtered.filter
+        .wiki-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 22px; box-shadow: 0 4px 6px
