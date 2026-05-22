@@ -47,11 +47,9 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if env_key:
         keys_info.append({"key": env_key.strip(), "origin": "Render 환경변수"})
         
-    # 🌟 [방역망 가동] 윈도우 인코딩 쓰레기값(utf-8-sig) 및 눈에 안 보이는 특수문자 완벽 제거
     if os.path.exists("secret_key.txt"):
         with open("secret_key.txt", "r", encoding="utf-8-sig") as f:
             for idx, line in enumerate(f, 1):
-                # 앞뒤 공백 제거 및 눈에 안 보이는 줄바꿈(\r, \n), 따옴표("", '') 원천 박멸
                 clean_key = line.strip().replace('"', '').replace("'", "").replace('\r', '').replace('\n', '')
                 if clean_key:
                     if not any(k["key"] == clean_key for k in keys_info):
@@ -87,11 +85,11 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
         
         if api_key.startswith("sk-or-"):
             try:
-                url = "https://openrouter.ai/api/v1/chat/completions"
+                url = "[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)"
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com",
+                    "HTTP-Referer": "[https://github.com](https://github.com)",
                     "X-Title": "Nomu Wiki"
                 }
                 payload = {
@@ -116,7 +114,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
 
         else:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=){api_key}"
                 headers = {"Content-Type": "application/json"}
                 payload = {
                     "contents": [{
@@ -128,4 +126,17 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
                 
                 with urllib.request.urlopen(req, timeout=15) as response:
-                    res_data
+                    res_data = json.loads(response.read().decode("utf-8"))
+                
+                if "candidates" in res_data and len(res_data["candidates"]) > 0:
+                    part = res_data["candidates"][0]["content"]["parts"][0]
+                    return {"answer": part["text"].strip()}
+                else:
+                    error_reports.append(f"❌ [{origin_name} - 구글 REST 거절] -> {res_data}")
+                    continue
+            except Exception as e:
+                error_reports.append(f"❌ [{origin_name} - 구글 REST 에러] -> {str(e)}")
+                continue 
+
+    report_text = "\n".join(error_reports)
+    return {"answer": f"⏳ 모든 API 열쇠가 차단되었습니다. 블랙박스 리포트를 확인해 주세요:\n\n{report_text}"}
