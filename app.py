@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import re
 import urllib.request
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,7 +48,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if env_key:
         keys_info.append({"key": env_key.strip(), "origin": "Render 환경변수"})
         
-    # 2. secret_key.txt 내의 모든 키 수집 (구글 키, 오픈라우터 키)
+    # 2. secret_key.txt 내의 모든 키 수집
     if os.path.exists("secret_key.txt"):
         with open("secret_key.txt", "r", encoding="utf-8") as f:
             for idx, line in enumerate(f, 1):
@@ -57,6 +59,9 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                     
     if not keys_info:
         return {"answer": "❌ [설정 오류] 등록된 API 키가 단 하나도 없습니다."}
+
+    # 🌟 [오픈라우터 무조건 1순위 강제 정렬] sk-or- 키를 리스트 맨 앞으로 대피시킵니다.
+    keys_info.sort(key=lambda x: 0 if x["key"].startswith("sk-or-") else 1)
 
     # 콘텍스트 구축
     keywords = query.split()
@@ -75,20 +80,22 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     [참고 데이터]\n{context_text}\n\n[유저의 질문]\n"{query}"
     """
 
-    last_error = ""
+    # 모든 키의 실행 결과를 기록할 블랙박스 서랍
+    error_reports = []
 
-    # 🌟 [광속 라우팅] 기다리지 않고 막히면 즉시 다음 열쇠로 0초 만에 토스합니다.
     for info in keys_info:
         api_key = info["key"]
         origin_name = info["origin"]
         
-        # 🟦 오픈라우터 키 일 때 (sk-or- 로 시작)
+        # 🟦 오픈라우터 키 일 때 (무조건 최우선 실행)
         if api_key.startswith("sk-or-"):
             try:
                 url = "https://openrouter.ai/api/v1/chat/completions"
                 headers = {
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com",
+                    "X-Title": "Nomu Wiki"
                 }
                 payload = {
                     "model": "google/gemini-2.5-flash",
@@ -104,21 +111,17 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 if "choices" in res_data and len(res_data["choices"]) > 0:
                     return {"answer": res_data["choices"][0]["message"]["content"].strip()}
                 else:
-                    last_error = f"오픈라우터 반환 실패 ({origin_name})"
+                    error_reports.append(f"❌ [{origin_name} - 오픈라우터 거절] -> {res_data}")
                     continue
             except Exception as e:
-                last_error = f"오픈라우터 오류: {str(e)} ({origin_name})"
+                error_reports.append(f"❌ [{origin_name} - 오픈라우터 에러] -> {str(e)}")
                 continue
 
-        # 🟩 일반 구글 공식 키 일 때
+        # 🟩 일반 구글 공식 키 일 때 (오픈라우터가 실패하거나 없을 때만 백업 가동)
         else:
             try:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                 return {"answer": response.text.strip()}
             except Exception as e:
-                # 429 한도초과나 400 에러 등이 나면 숨 고르지 않고 즉시 다음 키로 패스!
-                last_error = f"구글 API 오류: {str(e)} ({origin_name})"
-                continue 
-
-    return {"answer": f"⏳ 현재 가용한 모든 키가 만료되었거나 순간 트래픽 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요.\n(로그: {last_error})"}
+                error_reports.append(f"❌
