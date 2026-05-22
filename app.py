@@ -47,10 +47,12 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if env_key:
         keys_info.append({"key": env_key.strip(), "origin": "Render 환경변수"})
         
+    # 🌟 [방역망 가동] 윈도우 인코딩 쓰레기값(utf-8-sig) 및 눈에 안 보이는 특수문자 완벽 제거
     if os.path.exists("secret_key.txt"):
-        with open("secret_key.txt", "r", encoding="utf-8") as f:
+        with open("secret_key.txt", "r", encoding="utf-8-sig") as f:
             for idx, line in enumerate(f, 1):
-                clean_key = line.strip()
+                # 앞뒤 공백 제거 및 눈에 안 보이는 줄바꿈(\r, \n), 따옴표("", '') 원천 박멸
+                clean_key = line.strip().replace('"', '').replace("'", "").replace('\r', '').replace('\n', '')
                 if clean_key:
                     if not any(k["key"] == clean_key for k in keys_info):
                         keys_info.append({"key": clean_key, "origin": f"secret_key.txt {idx}번째 줄"})
@@ -93,7 +95,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                     "X-Title": "Nomu Wiki"
                 }
                 payload = {
-                    "model": "google/gemini-2.5-flash:free",  # 🌟 [오류 해결] 뒤에 :free를 붙여 공짜 엔진으로 강제 호출합니다!
+                    "model": "google/gemini-2.5-flash:free", 
                     "messages": [{"role": "user", "content": prompt}]
                 }
                 
@@ -126,8 +128,4 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
                 
                 with urllib.request.urlopen(req, timeout=15) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-                
-                if "candidates" in res_data and len(res_data["candidates"]) > 0:
-                    part = res_data["candidates"][0]["content"]["parts"][0]
-                    return {"answer": part["text"].strip()}
+                    res_data
