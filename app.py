@@ -1,6 +1,7 @@
 import os
 import json
-import time  # 🌟 자동 시간 지연을 위해 내장 라이브러리 추가
+import time
+import re  # 🌟 구글 에러 메시지에서 숫자(초)를 추출하기 위해 정규표현식 라이브러리 추가
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -73,7 +74,6 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
 
     last_error = ""
     for i, api_key in enumerate(available_keys):
-        # 🌟 [무적 안전망] 각 키당 최대 2번씩 백그라운드 재시도 기회를 줍니다.
         for attempt in range(2):
             try:
                 client = genai.Client(api_key=api_key)
@@ -85,17 +85,27 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
             except Exception as e:
                 err_msg = str(e)
                 
-                # 🔍 구글이 "잠시 쉬다 오라(429, RESOURCE_EXHAUSTED)"고 가로막은 경우
+                # 🔍 구글이 과부하(429) 제한을 걸었을 때 진입
                 if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
                     if attempt == 0:
-                        # 유저 모르게 백엔드 서버단에서 3.2초(구글 요구치 이상) 동안 숨을 고른 뒤 재시도 슛!
-                        print(f"⏳ [{i+1}번 키] 순간 과부하(429) 감지 ➡️ 3.2초 대기 후 자동 재시도합니다...")
-                        time.sleep(3.2)
-                        continue
+                        # 🌟 [치트키] 에러 메시지에서 "Please retry in 11.18s" 같은 문구를 찾아 숫자를 동적으로 추출합니다.
+                        match = re.search(r"Please retry in ([\d\.]+)s", err_msg)
+                        wait_time = 12.0  # 숫자를 못 찾을 경우를 대비한 기본값 (안전하게 12초)
+                        
+                        if match:
+                            try:
+                                # 구글이 요구한 시간에 안전마진 1.5초를 더해 완벽하게 제한을 우회합니다.
+                                wait_time = float(match.group(1)) + 1.5
+                            except:
+                                pass
+                                
+                        print(f"⏳ [{i+1}번 키] 구글 과부하 통제 감지 ➡️ {wait_time:.2f}초 동안 서버 자동 정지 후 재시도합니다...")
+                        time.sleep(wait_time)
+                        continue  # 똑같은 키로 한 번 더 완벽하게 재시도!
                 
-                # 429 가 아니거나, 2번째 재시도마저 실패했다면 다음 예비 키로 즉시 패스
+                # 재시도마저 실패했거나 다른 에러라면 다음 예비 키로 패스
                 last_error = err_msg
-                print(f"⚠️ [{i+1}번 키 에러 발생] 예비 키로 우회합니다. 원인: {last_error}")
+                print(f"⚠️ [{i+1}번 키 최종 실패] 다음 키로 우회합니다. 원인: {last_error}")
                 break 
 
-    return {"answer": f"⏳ 모든 무료 키의 순간 트래픽 제한이 걸렸습니다. 잠시 후 다시 질문해 주세요.\n(에러 요약: {last_error})"}
+    return {"answer": f"⏳ 구글 서버의 일시적인 트래픽 통제가 너무 강합니다. 잠시 후 [질문하기]를 다시 눌러주세요.\n(에러 요약: {last_error})"}
