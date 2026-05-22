@@ -2,7 +2,7 @@ import os
 import json
 import time
 import re
-import requests  # 🌟 오픈라우터 API 통신을 위해 추가
+import urllib.request  # 🌟 [설치 필요 없음] 파이썬 내장 라이브러리로 안전하게 변경
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -43,12 +43,10 @@ def get_backend_filtered_cases(category: str = "전체", keyword: str = ""):
 def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
     keys_info = []
     
-    # 1. Render 환경변수 확인
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key:
         keys_info.append({"key": env_key.strip(), "origin": "Render 환경변수"})
         
-    # 2. secret_key.txt 내의 모든 키 수집 (구글 키, 오픈라우터 키 혼합 가능)
     if os.path.exists("secret_key.txt"):
         with open("secret_key.txt", "r", encoding="utf-8") as f:
             for idx, line in enumerate(f, 1):
@@ -83,32 +81,37 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
         api_key = info["key"]
         origin_name = info["origin"]
         
-        # 🌟 A안: 오픈라우터 키 일 때 (sk-or- 로 시작하는 경우)
+        # 🌟 A안: 오픈라우터 키 일 때 (내장 urllib.request 사용)
         if api_key.startswith("sk-or-"):
             try:
+                url = "https://openrouter.ai/api/v1/chat/completions"
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 }
                 payload = {
-                    "model": "google/gemini-2.5-flash",  # 오픈라우터용 제미나이 2.5 플래시 지정
+                    "model": "google/gemini-2.5-flash",
                     "messages": [{"role": "user", "content": prompt}]
                 }
-                # 오픈라우터 API 엔드포인트로 우회 접속
-                res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-                res_data = res.json()
+                
+                # 순정 파이썬 방식으로 데이터 포장
+                data_bytes = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+                
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    res_data = json.loads(response.read().decode("utf-8"))
                 
                 if "choices" in res_data and len(res_data["choices"]) > 0:
                     return {"answer": res_data["choices"][0]["message"]["content"].strip()}
                 else:
                     last_error = f"오픈라우터 반환 에러: {res_data}"
-                    print(f"⚠️ [{origin_name}] 오픈라우터 거부 ➡️ 다음 키로 이동. 원인: {last_error}")
+                    print(f"⚠️ [{origin_name}] 오픈라우터 거부 ➡️ 다음 키로 이동.")
                     continue
             except Exception as e:
                 last_error = f"오픈라우터 통신 실패: {str(e)}"
                 continue
 
-        # 🌟 B안: 일반 구글 공식 키 일 때 (AIzaSy 로 시작하는 경우)
+        # 🌟 B안: 일반 구글 공식 키 일 때
         else:
             for attempt in range(2):
                 try:
@@ -130,4 +133,4 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                             continue 
                     break 
 
-    return {"answer": f"⏳ 모든 API 키(구글/오픈라우터 포함)가 요청을 처리하지 못했습니다.\n(마지막 에러 로그: {last_error})"}
+    return
