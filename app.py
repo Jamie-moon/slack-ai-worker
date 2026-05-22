@@ -2,7 +2,7 @@ import os
 import json
 import time
 import re
-import urllib.request  # 🌟 외부 SDK 없이 구글/오픈라우터 모두를 직접 호출하는 치트키
+import urllib.request
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,12 +43,10 @@ def get_backend_filtered_cases(category: str = "전체", keyword: str = ""):
 def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
     keys_info = []
     
-    # 1. Render 환경변수 수집
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key:
         keys_info.append({"key": env_key.strip(), "origin": "Render 환경변수"})
         
-    # 2. secret_key.txt 내의 모든 키 수집
     if os.path.exists("secret_key.txt"):
         with open("secret_key.txt", "r", encoding="utf-8") as f:
             for idx, line in enumerate(f, 1):
@@ -60,7 +58,6 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if not keys_info:
         return {"answer": "❌ [설정 오류] 등록된 API 키가 단 하나도 없습니다."}
 
-    # 🌟 오픈라우터 키(sk-or-)를 무조건 0순위로 앞으로 전진 배치
     keys_info.sort(key=lambda x: 0 if x["key"].startswith("sk-or-") else 1)
 
     # 컨텍스트 조립
@@ -86,7 +83,6 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
         api_key = info["key"]
         origin_name = info["origin"]
         
-        # 🟦 [오픈라우터 라우트] sk-or- 키 일 때
         if api_key.startswith("sk-or-"):
             try:
                 url = "https://openrouter.ai/api/v1/chat/completions"
@@ -97,7 +93,7 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                     "X-Title": "Nomu Wiki"
                 }
                 payload = {
-                    "model": "google/gemini-2.5-flash",
+                    "model": "google/gemini-2.5-flash:free",  # 🌟 [오류 해결] 뒤에 :free를 붙여 공짜 엔진으로 강제 호출합니다!
                     "messages": [{"role": "user", "content": prompt}]
                 }
                 
@@ -116,7 +112,6 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 error_reports.append(f"❌ [{origin_name} - 오픈라우터 에러] -> {str(e)}")
                 continue
 
-        # 🟩 [구글 공식 REST API 라우트] 외부 구글 라이브러리 없이 웹 통신으로 다이렉트 호출!
         else:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -136,12 +131,3 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 if "candidates" in res_data and len(res_data["candidates"]) > 0:
                     part = res_data["candidates"][0]["content"]["parts"][0]
                     return {"answer": part["text"].strip()}
-                else:
-                    error_reports.append(f"❌ [{origin_name} - 구글 REST 거절] -> {res_data}")
-                    continue
-            except Exception as e:
-                error_reports.append(f"❌ [{origin_name} - 구글 REST 에러] -> {str(e)}")
-                continue 
-
-    report_text = "\n".join(error_reports)
-    return {"answer": f"⏳ 모든 API 열쇠가 차단되었습니다. 블랙박스 리포트를 확인해 주세요:\n\n{report_text}"}
