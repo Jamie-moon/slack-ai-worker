@@ -2,10 +2,10 @@ import os
 import json
 import time
 import re
-import urllib.request
+import urllib.request  # 🌟 외부 SDK 없이 구글/오픈라우터 모두를 직접 호출하는 치트키
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from google import genai
 
 app = FastAPI()
 
@@ -60,10 +60,10 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     if not keys_info:
         return {"answer": "❌ [설정 오류] 등록된 API 키가 단 하나도 없습니다."}
 
-    # 🌟 [오픈라우터 무조건 1순위 강제 정렬] sk-or- 키를 리스트 맨 앞으로 대피시킵니다.
+    # 🌟 오픈라우터 키(sk-or-)를 무조건 0순위로 앞으로 전진 배치
     keys_info.sort(key=lambda x: 0 if x["key"].startswith("sk-or-") else 1)
 
-    # 콘텍스트 구축
+    # 컨텍스트 조립
     keywords = query.split()
     related_docs = []
     for item in KNOWLEDGE_BASE:
@@ -80,14 +80,13 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
     [참고 데이터]\n{context_text}\n\n[유저의 질문]\n"{query}"
     """
 
-    # 모든 키의 실행 결과를 기록할 블랙박스 서랍
     error_reports = []
 
     for info in keys_info:
         api_key = info["key"]
         origin_name = info["origin"]
         
-        # 🟦 오픈라우터 키 일 때 (무조건 최우선 실행)
+        # 🟦 [오픈라우터 라우트] sk-or- 키 일 때
         if api_key.startswith("sk-or-"):
             try:
                 url = "https://openrouter.ai/api/v1/chat/completions"
@@ -117,11 +116,32 @@ def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문"))
                 error_reports.append(f"❌ [{origin_name} - 오픈라우터 에러] -> {str(e)}")
                 continue
 
-        # 🟩 일반 구글 공식 키 일 때 (오픈라우터가 실패하거나 없을 때만 백업 가동)
+        # 🟩 [구글 공식 REST API 라우트] 외부 구글 라이브러리 없이 웹 통신으로 다이렉트 호출!
         else:
             try:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-                return {"answer": response.text.strip()}
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }]
+                }
+                
+                data_bytes = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+                
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    res_data = json.loads(response.read().decode("utf-8"))
+                
+                if "candidates" in res_data and len(res_data["candidates"]) > 0:
+                    part = res_data["candidates"][0]["content"]["parts"][0]
+                    return {"answer": part["text"].strip()}
+                else:
+                    error_reports.append(f"❌ [{origin_name} - 구글 REST 거절] -> {res_data}")
+                    continue
             except Exception as e:
-                error_reports.append(f"❌
+                error_reports.append(f"❌ [{origin_name} - 구글 REST 에러] -> {str(e)}")
+                continue 
+
+    report_text = "\n".join(error_reports)
+    return {"answer": f"⏳ 모든 API 열쇠가 차단되었습니다. 블랙박스 리포트를 확인해 주세요:\n\n{report_text}"}
