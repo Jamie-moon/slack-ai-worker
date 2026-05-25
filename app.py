@@ -1,6 +1,5 @@
 import os
 import requests
-from flask import Flask, request, jsonify # 슬랙 연동을 위한 예시 (기존 프레임워크에 맞게 유지)
 
 # [1] 에러 방지용 안전한 키 로드 함수
 def get_safe_api_key():
