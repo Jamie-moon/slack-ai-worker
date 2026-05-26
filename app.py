@@ -4,73 +4,143 @@ import requests
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
 
-# 1. 로깅 및 FastAPI 앱 초기화 (Uvicorn이 이 'app'을 찾아서 실행합니다)
+# 1. 로깅 및 FastAPI 앱 초기화
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Gemini Slack Bot")
+app = FastAPI(title="Gemini Slack Bot (Key Rotation)")
 
-# [환경변수] Slack으로 답변을 다시 쏘아줄 때 필요한 봇 토큰
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 
 # ========================================================
-# [핵심 로직] API 키 로드 및 Gemini 호출 함수
+# [핵심 로직] 다중 API 키 로드 및 자동 순회(Rotation) 시스템
 # ========================================================
 
-def get_safe_api_key() -> str:
-    """ 환경변수 또는 로컬 파일에서 Gemini API 키를 안전하게 로드합니다. """
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if api_key:
-        return api_key.strip()
+def get_all_api_keys() -> list:
+    """
+    환경변수 및 secret_key.txt의 모든 줄을 읽어 유효한 키 리스트를 반환합니다.
+    """
+    keys = []
+    
+    # 1순위: 클라우드 환경변수 확인
+    env_key = os.environ.get("GEMINI_API_KEY")
+    if env_key:
+        keys.append(env_key.strip())
         
+    # 2순위: secret_key.txt 파일에서 줄별로 키 추출
     key_file = "secret_key.txt"
     if os.path.exists(key_file):
         try:
             with open(key_file, "r", encoding="utf-8") as f:
-                return f.read().strip()
+                for line in f:
+                    cleaned_key = line.strip()
+                    # 빈 줄이거나 주석(#) 처리된 줄은 제외
+                    if cleaned_key and not cleaned_key.startswith("#"):
+                        keys.append(cleaned_key)
         except Exception as e:
             logger.error(f"🔑 키 파일을 읽는 중 오류가 발생했습니다: {e}")
             
-    return ""
+    return keys
 
 def call_openrouter_api(old_api_key_param, user_query: str) -> str:
-    """ 기존 Slack 봇 호환용 함수. 내부적으로는 최신 Gemini API를 호출합니다. """
-    api_key = get_safe_api_key()
-    if not api_key:
-        return "⚠️ API 키가 설정되지 않았습니다. 환경변수(GEMINI_API_KEY)나 secret_key.txt 파일을 확인해주세요."
+    """
+    등록된 모든 API 키를 하나씩 테스트하며 정상 작동하는 키로 답변을 받아옵니다.
+    모든 키가 실패하면 블랙박스 리포트를 반환합니다.
+    """
+    api_keys = get_all_api_keys()
+    if not api_keys:
+        return "⚠️ API 키가 설정되지 않았습니다. 환경변수나 secret_key.txt 파일을 확인해주세요."
         
-    if api_key.startswith("sk-or-"):
-        return "❌ 이전 OpenRouter 키가 감지되었습니다. 구글 제미나이 키(AIzaSy...)로 교체해주세요."
+    blackbox_report = []  # 에러 로그를 모아둘 리포트 리스트
+    
+    # 등록된 키들을 하나씩 꺼내어 도전!
+    for idx, api_key in enumerate(api_keys, start=1):
+        
+        # OpenRouter 옛날 키 필터링
+        if api_key.startswith("sk-or-"):
+            blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 이전 OpenRouter 키 분기 에러] ->")
+            continue
 
-    # 최신 고성능 무료 모델인 gemini-2.5-flash 사용
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    
-    payload = {
-        "contents": [{
-            "parts": [{"text": user_query}]
-        }],
-        "systemInstruction": {
-            "parts": [{"text": "당신은 전문 공인노무사 AI입니다. 대한민국 노동법과 최신 판례를 기반으로 명확하고 신뢰할 수 있는 답변을 제공하세요."}]
+        # Gemini API 설정 (여러 개를 돌려야 하므로 timeout은 15초로 최적화)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": user_query}]}],
+            "systemInstruction": {
+                "parts": [{"text": "당신은 전문 공인노무사 AI입니다. 대한민국 노동법과 최신 판례를 기반으로 명확하고 신뢰할 수 있는 답변을 제공하세요."}]
+            }
         }
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
         
-        if response.status_code == 400:
-            return "❌ 요청 형식이 올바르지 않습니다. (API 스펙 확인 필요)"
-        elif response.status_code == 403:
-            return "❌ API 키가 유효하지 않거나 권한이 없습니다. 키를 다시 확인해주세요."
-        elif response.status_code == 429:
-            return "⏳ 무료 제공량 제한(Rate Limit)을 초과했습니다. 잠시 후 다시 시도해주세요."
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
             
-        response.raise_for_status()
-        result = response.json()
-        
-        return result['candidates'][0]['content']['parts'][0]['text']
-        
-    except requests.exceptions.Timeout:
-        return "⏳ AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."
+            # 성공 시 즉시 답변 반환하고 종료!
+            if response.status_code == 200:
+                result = response.json()
+                return result['candidates'][0]['content']['parts'][0]['text']
+            
+            # 실패 시 상태 코드별로 블랙박스 리포트에 기록 후 다음 키로 토스
+            else:
+                blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 구글 REST 에러 (Status {response.status_code})] ->")
+                
+        except requests.exceptions.Timeout:
+            blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 네트워크 타임아웃 에러] ->")
+        except Exception as e:
+            blackbox_report.error(f"키 {idx}번 구동 실패 에러: {e}")
+            blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 알 수 없는 시스템 에러] ->")
+
+    # 💡 모든 키가 결국 실패한 경우 유저가 요청한 포맷으로 리포트 출력
+    report_header = "⏳ 모든 API 열쇠가 차단되었습니다. 블랙박스 리포트를 확인해 주세요:\n\n"
+    return report_header + "\n".join(blackbox_report)
+
+# ========================================================
+# [Slack 연동 및 엔드포인트] 변경 없음 (그대로 유지)
+# ========================================================
+
+def send_slack_message(channel: str, text: str, thread_ts: str = None):
+    if not SLACK_BOT_TOKEN:
+        logger.error("SLACK_BOT_TOKEN 미설정")
+        return
+    url = "https://slack.com/api/chat.postMessage"
+    token = SLACK_BOT_TOKEN if SLACK_BOT_TOKEN.startswith("Bearer ") else f"Bearer {SLACK_BOT_TOKEN}"
+    headers = {"Authorization": token, "Content-Type": "application/json; charset=utf-8"}
+    payload = {"channel": channel, "text": text}
+    if thread_ts:
+        payload["thread_ts"] = thread_ts
+    try:
+        requests.post(url, headers=headers, json=payload, timeout=10)
     except Exception as e:
-        logger.error(f"🤖 Gemini API 호출 중 예기치 못한 오류 발생: {e
+        logger.error(f"Slack 전송 에러: {e}")
+
+def process_ai_and_respond(channel: str, user_query: str, thread_ts: str = None):
+    ai_response = call_openrouter_api(None, user_query)
+    send_slack_message(channel, ai_response, thread_ts)
+
+@app.get("/")
+async def root():
+    return {"status": "healthy", "message": "Gemini 로테이션 봇 가동 중"}
+
+@app.post("/slack/events")
+async def slack_events(request: Request, background_tasks: BackgroundTasks):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    if "challenge" in body:
+        return PlainTextResponse(body["challenge"])
+
+    if "event" in body:
+        event = body["event"]
+        if event.get("bot_id") or event.get("subtype") == "bot_message":
+            return {"ok": True}
+
+        if event.get("type") in ["app_mention", "message"]:
+            user_query = event.get("text", "")
+            channel = event.get("channel", "")
+            thread_ts = event.get("ts")
+            
+            if user_query and channel:
+                background_tasks.add_task(process_ai_and_respond, channel, user_query, thread_ts)
+                
+    return {"ok": True}
