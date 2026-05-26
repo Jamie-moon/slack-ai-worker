@@ -63,4 +63,75 @@ def call_openrouter_api(old_api_key_param, user_query):
         }
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=
+            # 💡 [수정 완료] 잘려 나가지 않도록 안전하게 줄바꿈 처리했습니다.
+            response = requests.post(
+                url, 
+                headers=headers, 
+                json=payload, 
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['candidates'][0]['content']['parts'][0]['text']
+            else:
+                blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 구글 REST 에러 (Status {response.status_code})] ->")
+                
+        except requests.exceptions.Timeout:
+            blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 네트워크 타임아웃 에러] ->")
+        except Exception as e:
+            logger.error(f"❌ 키 {idx}번 구동 중 에러 발생: {e}")
+            blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 알 수 없는 시스템 에러] ->")
+
+    report_header = "⏳ 모든 API 열쇠가 차단되었습니다. 블랙박스 리포트를 확인해 주세요:\n\n"
+    return report_header + "\n".join(blackbox_report)
+
+# ========================================================
+# [Slack 연동 및 엔드포인트] 백그라운드 처리 시스템
+# ========================================================
+
+def send_slack_message(channel, text, thread_ts=None):
+    if not SLACK_BOT_TOKEN:
+        logger.error("❌ SLACK_BOT_TOKEN 미설정")
+        return
+    url = "https://slack.com/api/chat.postMessage"
+    token = SLACK_BOT_TOKEN if SLACK_BOT_TOKEN.startswith("Bearer ") else f"Bearer {SLACK_BOT_TOKEN}"
+    headers = {"Authorization": token, "Content-Type": "application/json; charset=utf-8"}
+    payload = {"channel": channel, "text": text}
+    if thread_ts:
+        payload["thread_ts"] = thread_ts
+    try:
+        requests.post(url, headers=headers, json=payload, timeout=10)
+    except Exception as e:
+        logger.error(f"❌ Slack 전송 에러: {e}")
+
+def process_ai_and_respond(channel, user_query, thread_ts=None):
+    ai_response = call_openrouter_api(None, user_query)
+    send_slack_message(channel, ai_response, thread_ts)
+
+@app.get("/")
+async def root():
+    return {"status": "healthy", "message": "Gemini 로테이션 봇이 가동 중입니다."}
+
+@app.post("/slack/events")
+async def slack_events(request: Request, background_tasks: BackgroundTasks):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    if "challenge" in body:
+        return PlainTextResponse(body["challenge"])
+
+    if "event" in body:
+        event = body["event"]
+        if event.get("bot_id") or event.get("subtype") == "bot_message":
+            return {"ok": True}
+
+        if event.get("type") in ["app_mention", "message"]:
+            user_query = event.get("text", "")
+            channel = event.get("channel", "")
+            thread_ts = event.get("ts")
+            
+            if user_query and channel:
+                background_tasks.add
