@@ -3,30 +3,79 @@ import logging
 import requests
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
+# 🔥 CORS 설정을 위해 필요한 모듈 임포트
+from fastapi.middleware.cors import CORSMiddleware
 
 # 1. 로깅 및 FastAPI 초기화
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("🚀 app.py 초기 로드 시작...")
+logger.info("🚀 app.py 초기 로드 및 CORS 세팅 시작...")
 
-app = FastAPI(title="Gemini Slack Bot")
+app = FastAPI(title="Gemini Slack Bot & Labor API")
+
+# 2. 🔥 CORS 보안 허가증 설정 (GitHub Pages의 접근을 전면 허용합니다)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 도메인에서의 접속을 허용 (보안 규제 해제)
+    allow_credentials=True,
+    allow_methods=["*"],  # GET, POST 등 모든 요청 허용
+    allow_headers=["*"],  # 모든 헤더 허용
+)
 
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
+
+# ========================================================
+# [새로 추가] 웹사이트(GitHub Pages) "전체 바이블" 연동 주소
+# ========================================================
+
+@app.get("/api/cases")
+async def get_cases(category: str = "전체", keyword: str = ""):
+    """ 웹사이트의 판례/노무 바이블 요청에 응답하는 함수입니다. """
+    logger.info(f"🔍 웹사이트 판례 검색 요청 수신 -> 카테고리: {category}, 키워드: {keyword}")
+    
+    # 💡 프론트엔드 화면이 정상적으로 깨어나도록 만들어둔 샘플 데이터 바이블입니다.
+    # 추후 필요한 판례나 규정 데이터로 얼마든지 자유롭게 수정하셔도 됩니다!
+    bible_data = [
+        {
+            "id": 1,
+            "category": "근로시간",
+            "title": "연장근로 한도 위반 여부 산정 기준 (최신 판례)",
+            "content": "대법원 판례에 따르면, 일주일간 총 근로시간이 52시간을 초과했는지를 기준으로 형사처벌 여부를 판단해야 하며, 하루 8시간 초과분을 각각 더하는 방식이 아닙니다."
+        },
+        {
+            "id": 2,
+            "category": "임금",
+            "title": "평균임금과 통상임금의 정의 및 구분",
+            "content": "통상임금은 연장·야간·휴일근로 수당의 계산 근거가 되는 사전에 정해진 고정급이며, 평균임금은 퇴직금 산정의 기준이 되는 3개월간의 실제 수령액 평균입니다."
+        },
+        {
+            "id": 3,
+            "category": "해고",
+            "title": "부당해고 구제신청 및 정당성 요건",
+            "content": "근로기준법 제23조 제1항에 따라 해고는 '정당한 이유'가 있어야 하며, 5인 이상 사업장에서는 반드시 해고 사유와 시기를 '서면'으로 통지해야만 효력이 발생합니다."
+        }
+    ]
+    
+    # 검색 키워드가 들어온 경우 필터링 작동
+    if keyword:
+        filtered_data = [
+            item for item in bible_data 
+            if keyword in item["title"] or keyword in item["content"]
+        ]
+        return filtered_data
+        
+    return bible_data
 
 # ========================================================
 # [핵심 로직] API 키 로드 및 자동 순회(Rotation) 시스템
 # ========================================================
 
 def get_safe_api_key():
-    """ 환경변수 및 secret_key.txt의 모든 줄을 읽어 키 리스트를 반환합니다. """
     keys = []
-    
-    # 1순위: 클라우드 환경변수 확인
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key:
         keys.append(env_key.strip())
         
-    # 2순위: secret_key.txt 파일 확인
     key_file = "secret_key.txt"
     if os.path.exists(key_file):
         try:
@@ -41,7 +90,6 @@ def get_safe_api_key():
     return keys
 
 def call_openrouter_api(old_api_key_param, user_query):
-    """ 등록된 모든 API 키를 순회하며 정상 작동하는 키로 답변을 받아옵니다. """
     api_keys = get_safe_api_key()
     if not api_keys:
         return "⚠️ API 키가 설정되지 않았습니다. 환경변수나 secret_key.txt 파일을 확인해주세요."
@@ -63,20 +111,12 @@ def call_openrouter_api(old_api_key_param, user_query):
         }
         
         try:
-            # 💡 [수정 완료] 잘려 나가지 않도록 안전하게 줄바꿈 처리했습니다.
-            response = requests.post(
-                url, 
-                headers=headers, 
-                json=payload, 
-                timeout=15
-            )
-            
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
             if response.status_code == 200:
                 result = response.json()
                 return result['candidates'][0]['content']['parts'][0]['text']
             else:
                 blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 구글 REST 에러 (Status {response.status_code})] ->")
-                
         except requests.exceptions.Timeout:
             blackbox_report.append(f"❌ [secret_key.txt {idx}번째 줄 - 네트워크 타임아웃 에러] ->")
         except Exception as e:
@@ -87,7 +127,7 @@ def call_openrouter_api(old_api_key_param, user_query):
     return report_header + "\n".join(blackbox_report)
 
 # ========================================================
-# [Slack 연동 및 엔드포인트] 백그라운드 처리 시스템
+# [Slack 연동 및 엔드포인트] 변경 없음
 # ========================================================
 
 def send_slack_message(channel, text, thread_ts=None):
@@ -111,7 +151,7 @@ def process_ai_and_respond(channel, user_query, thread_ts=None):
 
 @app.get("/")
 async def root():
-    return {"status": "healthy", "message": "Gemini 로테이션 봇이 가동 중입니다."}
+    return {"status": "healthy", "message": "Gemini 로테이션 및 바이블 API 가동 중"}
 
 @app.post("/slack/events")
 async def slack_events(request: Request, background_tasks: BackgroundTasks):
@@ -134,4 +174,6 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
             thread_ts = event.get("ts")
             
             if user_query and channel:
-                background_tasks.add
+                background_tasks.add_task(process_ai_and_respond, channel, user_query, thread_ts)
+                
+    return {"ok": True}
