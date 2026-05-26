@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Gemini Slack Bot & Labor API Debugger")
+app = FastAPI(title="Gemini Slack Bot & Labor API")
 
 # CORS 전면 허용
 app.add_middleware(
@@ -23,46 +23,45 @@ app.add_middleware(
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 
 # ========================================================
-# [디버깅 미들웨어] 모든 요청 주소를 실시간으로 추적합니다.
+# [디버깅 미들웨어] 모든 유입 요청을 실시간으로 추적
 # ========================================================
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    # 웹사이트가 서버의 어떤 주소(Path)와 방식(Method)으로 요청했는지 로그에 기록합니다.
-    logger.info(f"📡 [실시간 유입 감지] Method: {request.method} | Path: {request.url.path}")
+    logger.info(
+        f"📡 [유입] Method: {request.method} | "
+        f"Path: {request.url.path}"
+    )
     response = await call_next(request)
     return response
 
 # ========================================================
-# [바이블 API] GET과 POST, 슬래시 유무를 모두 처리하는 만능 엔드포인트
+# [바이블 API] GET/POST 및 슬래시 유무 통합 처리
 # ========================================================
 SAMPLE_BIBLE_DATA = [
     {
         "id": 1,
         "category": "근로시간",
         "title": "연장근로 한도 위반 여부 산정 기준 (최신 판례)",
-        "content": "대법원 판례에 따르면, 일주일간 총 근로시간이 52시간을 초과했는지를 기준으로 형사처벌 여부를 판단해야 하며, 하루 8시간 초과분을 각각 더하는 방식이 아닙니다."
+        "content": "일주일간 총 근로시간이 52시간을 초과했는지가 기준입니다."
     },
     {
         "id": 2,
         "category": "임금",
         "title": "평균임금과 통상임금의 정의 및 구분",
-        "content": "통상임금은 연장·야간·휴일근로 수당의 계산 근거가 되는 사전에 정해진 고정급이며, 평균임금은 퇴직금 산정의 기준이 되는 3개월간의 실제 수령액 평균입니다."
-    },
-    {
-        "id": 3,
-        "category": "해고",
-        "title": "부당해고 구제신청 및 정당성 요건",
-        "content": "근로기준법 제23조 제1항에 따라 해고는 '정당한 이유'가 있어야 하며, 5인 이상 사업장에서는 반드시 해고 사유와 시기를 '서면'으로 통지해야만 효력이 발생합니다."
+        "content": "통상임금은 고정급, 평균임금은 3개월간의 실제 수령액 기준입니다."
     }
 ]
 
-# 💡 혹시 프론트엔드가 POST로 요청할 수도 있으므로, GET과 POST를 주소별로 모두 열어둡니다.
 @app.get("/api/cases")
 @app.get("/api/cases/")
 @app.post("/api/cases")
 @app.post("/api/cases/")
-async def get_cases(request: Request, category: str = "전체", keyword: str = ""):
-    logger.info("✅ 바이블 데이터 매칭 성공하여 전송합니다.")
+async def get_cases(
+    request: Request, 
+    category: str = "전체", 
+    keyword: str = ""
+):
+    logger.info("✅ 바이블 데이터 반환 성공")
     return SAMPLE_BIBLE_DATA
 
 # ========================================================
@@ -71,6 +70,7 @@ async def get_cases(request: Request, category: str = "전체", keyword: str = "
 
 def get_safe_api_key():
     keys = []
+    
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key:
         keys.append(env_key.strip())
@@ -81,4 +81,41 @@ def get_safe_api_key():
             with open(key_file, "r", encoding="utf-8") as f:
                 for line in f:
                     cleaned_key = line.strip()
-                    if cleaned_key and not cleaned_
+                    # 💡 [우측 쪼개기 수정을 통해 절대 안 잘리게 방어]
+                    if not cleaned_key:
+                        continue
+                    if cleaned_key.startswith("#"):
+                        continue
+                    keys.append(cleaned_key)
+        except Exception as e:
+            logger.error(f"🔑 키 파일 읽기 실패: {e}")
+            
+    return keys
+
+def call_openrouter_api(old_api_key_param, user_query):
+    api_keys = get_safe_api_key()
+    if not api_keys:
+        return "⚠️ API 키가 설정되지 않았습니다."
+        
+    blackbox_report = []
+    for idx, api_key in enumerate(api_keys, start=1):
+        if api_key.startswith("sk-or-"):
+            blackbox_report.append(f"❌ [{idx}번 - 구형 키 에러] ->")
+            continue
+
+        # 💡 URL 문자열도 안전하게 결합 방식으로 쪼개기
+        base_url = "https://generativelanguage.googleapis.com/v1beta/models/"
+        url = f"{base_url}gemini-2.5-flash:generateContent?key={api_key}"
+        
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": user_query}]}],
+            "systemInstruction": {
+                "parts": [{
+                    "text": "당신은 전문 공인노무사 AI입니다."
+                }]
+            }
+        }
+        
+        try:
+            response = requests.post(
