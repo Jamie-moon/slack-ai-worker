@@ -3,38 +3,36 @@ import logging
 import requests
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse, JSONResponse
-# 🔥 CORS 설정을 위해 필요한 모듈 임포트
 from fastapi.middleware.cors import CORSMiddleware
 
 # 1. 로깅 및 FastAPI 초기화
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("🚀 app.py 초기 로드 및 CORS 세팅 시작...")
+logger.info("🚀 app.py 안전 모드 가동...")
 
 app = FastAPI(title="Gemini Slack Bot & Labor API")
 
-# 2. 🔥 CORS 보안 허가증 설정 (GitHub Pages의 접근을 전면 허용합니다)
+# 2. CORS 전면 허용 (보안 규제 해제)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 도메인에서의 접속을 허용 (보안 규제 해제)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # GET, POST 등 모든 요청 허용
-    allow_headers=["*"],  # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 
 # ========================================================
-# [새로 추가] 웹사이트(GitHub Pages) "전체 바이블" 연동 주소
+# [보안 강화] 슬래시 기호 무관하게 다 잡아내는 바이블 API
 # ========================================================
 
+# 💡 주소 끝에 슬래시가 있든(/) 없든 모두 이 함수가 처리하도록 이중 등록합니다.
 @app.get("/api/cases")
+@app.get("/api/cases/")
 async def get_cases(category: str = "전체", keyword: str = ""):
-    """ 웹사이트의 판례/노무 바이블 요청에 응답하는 함수입니다. """
-    logger.info(f"🔍 웹사이트 판례 검색 요청 수신 -> 카테고리: {category}, 키워드: {keyword}")
+    logger.info(f"🔍 [API 요청 수신] 카테고리: {category}, 키워드: {keyword}")
     
-    # 💡 프론트엔드 화면이 정상적으로 깨어나도록 만들어둔 샘플 데이터 바이블입니다.
-    # 추후 필요한 판례나 규정 데이터로 얼마든지 자유롭게 수정하셔도 됩니다!
     bible_data = [
         {
             "id": 1,
@@ -56,7 +54,6 @@ async def get_cases(category: str = "전체", keyword: str = ""):
         }
     ]
     
-    # 검색 키워드가 들어온 경우 필터링 작동
     if keyword:
         filtered_data = [
             item for item in bible_data 
@@ -127,7 +124,7 @@ def call_openrouter_api(old_api_key_param, user_query):
     return report_header + "\n".join(blackbox_report)
 
 # ========================================================
-# [Slack 연동 및 엔드포인트] 변경 없음
+# [Slack 연동 및 엔드포인트]
 # ========================================================
 
 def send_slack_message(channel, text, thread_ts=None):
@@ -151,7 +148,7 @@ def process_ai_and_respond(channel, user_query, thread_ts=None):
 
 @app.get("/")
 async def root():
-    return {"status": "healthy", "message": "Gemini 로테이션 및 바이블 API 가동 중"}
+    return {"status": "healthy", "message": "서버 가동 중"}
 
 @app.post("/slack/events")
 async def slack_events(request: Request, background_tasks: BackgroundTasks):
