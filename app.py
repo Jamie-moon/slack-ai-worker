@@ -1,65 +1,74 @@
-import json
-from fastapi import FastAPI, Query
+import os, logging, requests
+from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi.responses import PlainTextResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import StreamingResponse
-from google import genai
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 app = FastAPI()
 
-# CORS 방어막 설정
-app.add_middleware(
-CORSMiddleware,
-allow_origins=["*"],
-allow_credentials=True,
-allow_methods=["*"],
-allow_headers=["*"],
-)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# 💡 [핵심 최적화] Streaming을 파괴하던 GZipMiddleware를 완전히 제거했습니다!
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 
-# 📚 대용량 데이터 캐싱 공간
-KNOWLEDGE_BASE = []
-@@ -28,6 +29,8 @@
-print(f"📦 [STARTUP] 데이터 로드 성공: {len(KNOWLEDGE_BASE)}개")
-except Exception as e:
-KNOWLEDGE_BASE = []
-else:
-    KNOWLEDGE_BASE = []
+@app.get("/")
+def root(): return {"status": "healthy"}
 
-@app.get("/api/cases")
-def get_all_cases():
-@@ -37,20 +40,19 @@ def get_all_cases():
-def ask_labor_ai(query: str = Query(..., description="유저의 노무 질문")):
-def stream_gemini_response():
-try:
-            # 1. 우선 Render 환경 변수에서 키를 찾아봅니다.
-            # 1. Render 환경 변수 우선 확인
-api_key = os.environ.get("GEMINI_API_KEY")
+@app.api_route("/api/cases", methods=["GET", "POST"])
+@app.api_route("/api/cases/", methods=["GET", "POST"])
+async def get_cases(request: Request):
+    return [
+        {
+            "id": 1, "category": "근로시간", 
+            "title": "연장근로 52시간 기준", "subject": "연장근로 52시간 기준", 
+            "content": "주 52시간 초과 여부가 기준입니다.", "body": "주 52시간 초과 여부가 기준입니다.", "text": "주 52시간 초과 여부가 기준입니다."
+        },
+        {
+            "id": 2, "category": "임금", 
+            "title": "통상임금 정의 판례", "subject": "통상임금 정의 판례", 
+            "content": "통상임금은 고정급, 평균임금은 3개월 평균입니다.", "body": "통상임금은 고정급, 평균임금은 3개월 평균입니다.", "text": "통상임금은 고정급, 평균임금은 3개월 평균입니다."
+        }
+    ]
 
-            # 🌟 [우회 필살기] 만약 환경변수가 비어있다면, 서버 내 비밀 파일(secret_key.txt)에서 직접 읽어옵니다.
-            # 2. 환경 변수가 데달사고 났을 경우 비밀 파일에서 직접 탈취
-if not api_key and os.path.exists("secret_key.txt"):
-with open("secret_key.txt", "r", encoding="utf-8") as f:
-api_key = f.read().strip()
+def get_safe_api_key():
+    keys = [os.environ.get("GEMINI_API_KEY")] if os.environ.get("GEMINI_API_KEY") else []
+    if os.path.exists("secret_key.txt"):
+        with open("secret_key.txt", "r", encoding="utf-8") as f:
+            keys.extend([l.strip() for l in f if l.strip() and not l.strip().startswith("#")])
+    return [k for k in keys if k]
 
-            # 둘 다 없다면 에러 송출
-if not api_key:
-                yield "❌ [최종 에러] Render 환경변수와 secret_key.txt 파일 모두에서 제미나이 API 키를 찾을 수 없습니다."
-                yield "❌ [키 누락] Render 환경변수와 secret_key.txt 파일 모두에서 키를 찾을 수 없습니다."
-return
+def call_openrouter_api(old_param, query):
+    api_keys = get_safe_api_key()
+    if not api_keys: return "⚠️ API 키가 없습니다."
+    rpt = []
+    for i, api_key in enumerate(api_keys, start=1):
+        if api_key.startswith("sk-or-"): continue
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        try:
+            body = {"contents": [{"parts": [{"text": query}]}], "systemInstruction": {"parts": [{"text": "전문 공인노무사 AI입니다."}]}}
+            res = requests.post(url, json=body, timeout=15)
+            if res.status_code == 200: return res.json()['candidates'][0]['content']['parts'][0]['text']
+            rpt.append(f"❌ {i}번 에러 ({res.status_code})")
+        except Exception: rpt.append(f"❌ {i}번 시스템 에러")
+    return "⏳ 모든 키 차단됨:\n" + "\n".join(rpt)
 
-            # 2. 엔진 기동
-            # 3. 제미나이 에이전트 기동
-client = genai.Client(api_key=api_key)
-keywords = query.split()
-related_docs = []
-@@ -81,6 +83,7 @@ def stream_gemini_response():
-           2. 위법 여부를 진단하고, 실무적 행동 지침(Action Plan)을 단계별로 제시하세요.
-           """
+def send_slack_message(channel, text, thread_ts=None):
+    if not SLACK_BOT_TOKEN: return
+    headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}", "Content-Type": "application/json; charset=utf-8"}
+    payload = {"channel": channel, "text": text}
+    if thread_ts: payload["thread_ts"] = thread_ts
+    try: requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=payload, timeout=10)
+    except Exception: pass
 
-            # 4. 방해 요소가 사라진 순수 실시간 스트리밍 송출
-response_stream = client.models.generate_content_stream(
-model='gemini-2.5-flash',
-contents=prompt,
+@app.post("/slack/events")
+async def slack_events(request: Request, bg: BackgroundTasks):
+    try: body = await request.json()
+    except Exception: return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+    if "challenge" in body: return PlainTextResponse(body["challenge"])
+    if "event" in body:
+        ev = body["event"]
+        if ev.get("bot_id") or ev.get("subtype") == "bot_message": return {"ok": True}
+        if ev.get("type") in ["app_mention", "message"]:
+            q, ch, ts = ev.get("text", ""), ev.get("channel", ""), ev.get("ts")
+            if q and ch: bg.add_task(lambda: send_slack_message(ch, call_openrouter_api(None, q), ts))
+    return {"ok": True}
