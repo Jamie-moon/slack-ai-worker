@@ -7,23 +7,29 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
-# CORS 전면 허용 (GitHub Pages 연동용)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 
 @app.get("/")
-def root(): return {"status": "healthy", "message": "가동 중"}
+def root(): return {"status": "healthy"}
 
-# [바이블 API] 웹사이트 노무 바이블 연동 엔드포인트
-@app.get("/api/cases")
-@app.get("/api/cases/")
-@app.post("/api/cases")
-@app.post("/api/cases/")
-def get_cases():
+# 💡 [핵심 변경] GET, POST, 어떤 검색 데이터가 들어오든 에러(422) 없이 무조건 통과시킵니다.
+@app.api_route("/api/cases", methods=["GET", "POST"])
+@app.api_route("/api/cases/", methods=["GET", "POST"])
+async def get_cases(request: Request):
+    # 💡 [그물망 데이터] 화면이 title, subject, content, body 중 뭘 요구할지 몰라서 전부 다 넣어두었습니다.
     return [
-        {"id": 1, "category": "근로시간", "title": "연장근로 52시간 기준", "content": "주 52시간 초과 여부가 기준입니다."},
-        {"id": 2, "category": "임금", "title": "통상임금 정의", "content": "통상임금은 고정급, 평균임금은 3개월 평균입니다."}
+        {
+            "id": 1, "category": "근로시간", 
+            "title": "연장근로 52시간 기준", "subject": "연장근로 52시간 기준", 
+            "content": "주 52시간 초과 여부가 기준입니다.", "body": "주 52시간 초과 여부가 기준입니다.", "text": "주 52시간 초과 여부가 기준입니다."
+        },
+        {
+            "id": 2, "category": "임금", 
+            "title": "통상임금 정의 판례", "subject": "통상임금 정의 판례", 
+            "content": "통상임금은 고정급, 평균임금은 3개월 평균입니다.", "body": "통상임금은 고정급, 평균임금은 3개월 평균입니다.", "text": "통상임금은 고정급, 평균임금은 3개월 평균입니다."
+        }
     ]
 
 def get_safe_api_key():
